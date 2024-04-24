@@ -169,7 +169,7 @@ CREATE TABLE joukkueet(
   jasenet VARCHAR(2048)  DEFAULT '[]',
   sarja INTEGER  NOT NULL,
   CONSTRAINT joukkueet_unique
-   UNIQUE ( joukkue COLLATE nocase, sarja ),
+   UNIQUE ( joukkue COLLATE nocase),
   CONSTRAINT joukkueet_sarja 
 	FOREIGN KEY (sarja)
 	REFERENCES sarjat (sarjaid)
@@ -187,13 +187,11 @@ INSERT INTO joukkueet  (joukkueid, joukkue, salasana, sarja, jasenet) VALUES(263
 INSERT INTO joukkueet  (joukkueid, joukkue, salasana, sarja, jasenet) VALUES(296671,'Retkellä v 13','fe2e9fb180c80631cc1ed8e8b1df5fbba2cbdcaebb0a9e35d0b3abb0870240d576480ddaa2a702be498044368e159c83d38180e9f0c16e0084a06c0e4a8f9654',604902,'["Henna Venäläinen", "Katja Vitikka"]');
 INSERT INTO joukkueet  (joukkueid, joukkue, salasana, sarja, jasenet) VALUES(304581,'Tähdenlento','330b4377a32fdb6590c6fe0fa83a87fadb5a134d32bd7e34fd1f61f3aac4ce1f3baec0a1a7d7a238a9219114a75ef5e99d68469110491e2edc5fdf2607f714d6',604902,'["Anu", "Virva"]');
 INSERT INTO joukkueet  (joukkueid, joukkue, salasana, sarja, jasenet) VALUES(358042,'Vapaat','dc7f061a4f372b55edbb02dfb4270fe7d0c4d42e610078110ea1e3591ac338691023084296650fecf1ec9343682a4cdd13369057a53fb01512bbeb7be5380edf',604902,'["Juha Vapaa", "Matti Vapaa"]');
-INSERT INTO joukkueet  (joukkueid, joukkue, salasana, sarja, jasenet) VALUES(461440,'Tähdenlento','0ec7b48e5497d2839db37ef55df075d201bb4e3664e73b308314b0f6756168d6954844fd4ba670cb2b91a91e84015b5e2dac838c388023e1cbb53afd0d7ed477',519620,'["Anu", "Virva"]');
 INSERT INTO joukkueet  (joukkueid, joukkue, salasana, sarja, jasenet) VALUES(498824,'Onnenonkijat','03f24b32587ce397c07ae224740e9ee9e6a2cb63b597c30a4f760140812daca4df29dfe6d4ec41f43fb4b4c2a820f3d75ccbf0de0d191d7d97725dea45d197cf',610144,'["Antero Paununen", "Pekka Paununen", "Raimo Laine"]');
 INSERT INTO joukkueet  (joukkueid, joukkue, salasana, sarja, jasenet) VALUES(501278,'vara 3','a56e6a598e35d82761d5c1f34f64cb46ca97490a8c1914be895c6107ccd45c61d98bae9e313561032e33a4c8bfe80a55126ba661531531515a8e98dba51a7789',610144,'["barbar"]');
 INSERT INTO joukkueet  (joukkueid, joukkue, salasana, sarja, jasenet) VALUES(545563,'RogRog','22e2635ba74bb4c286b65016f86d7a7c3574d3340e4191d71406e0a008145fdaadc0d4aac401c07fd64d95b2edeb84de3c39958d8bf9770ffc79e15e128029d3',610144,'["Antti Kaakkuri", "Mikko Meikäläinen", "Pekka Kosonen", "Samuli Paavola"]');
 INSERT INTO joukkueet  (joukkueid, joukkue, salasana, sarja, jasenet) VALUES(584788,'Vara 2','885c0dc8421da78fb36807f26f2baed0532a7a9aa9a6300634e76f87c4c08d43e3925af7d0dd02eb218ab4711806443bdc068f5c6e1e87c145dcfdee9c648308',610144,'[]');
 INSERT INTO joukkueet  (joukkueid, joukkue, salasana, sarja, jasenet) VALUES(666263,'Sopupeli','4229eddd3063a52c93c8d1a45e27ecc76c2a81066b3d434e3b201e469e12240151792a73634254e7b29054e3214b011db2a00953056d8107fa0903e73d5ee267',610144,'["Antti Haukio", "Janne Hautanen", "Taina Pekkanen", "Venla Kujala"]');
-INSERT INTO joukkueet  (joukkueid, joukkue, salasana, sarja, jasenet) VALUES(702742,'retkellä v 13','ad6e389b8b585965a7bbeffafac937c0ae7acac6da917bb18f58b0558d2090f81e5c274d18490dc22402280f6c6ac7c95184233c28424cd77b1793360ba63ae7',519620,'["Henna Venäläinen", "Katja Vitikka"]');
 INSERT INTO joukkueet  (joukkueid, joukkue, salasana, sarja, jasenet) VALUES(715949,'Kotilot','09258643994d54b90f72360cc0c923ed180fea235d78125852dc1b1c25e7ff85da32611d65512cfcbda122481973d753d3288b013c4c0b72d6197cdc7692d5b5',882960,'["Jaana Meikäläinen", "Kaisa Konttinen", "Maija Meikäläinen", "Niina Salonen"]');
 INSERT INTO joukkueet  (joukkueid, joukkue, salasana, sarja, jasenet) VALUES(730129,'susi jo syntyessään','46bddac5448a3e047e6727cd0e77c02ec9fb50d3a6ce249511c0a4e92edf4b317bdb02a6a0b449bfa1c669a9de41a559c34d15a9e09c194b266a9e61ca4db83e',610144,'["Janne Pannunen", "Riku Aarnio"]');
 INSERT INTO joukkueet  (joukkueid, joukkue, salasana, sarja, jasenet) VALUES(805774,'Rennot 1','9345714ba8e1efccb3aa24d9ebd10530cd060b82f495526c44848413a3d5935536b5c258c82b2461c84d66e73d69e058d383c39d61eb8faa5609d7aee47f0db4',610144,'["Anja Huttunen", "Siru Kananen"]');
