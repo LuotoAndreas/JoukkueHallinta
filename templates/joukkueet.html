@@ -15,18 +15,27 @@
         {% for sarja in sarjat %}
           <li value="{{ sarja.sarjaid }}">{{ sarja.nimi }}
             <ul class="joukkueet">
-              {% for joukkue in joukkueet %} <!-- oletan että joukkueet ovat sarja-osiossa -->
-                <li value="{{ joukkue.joukkueid }}">{{ joukkue.nimi }}
-                  <ul class="pelaajat">
-                    {% for jasen in joukkue.jasenet.split(',') %}
-                      <li value="{{ joukkue.joukkueid }}">{{ jasen }}</li>
-                    {% endfor %}
-                  </ul>
-                </li>
+              {% for joukkue in joukkueet %}
+                {% if joukkue.sarja == sarja.sarjaid %}
+                  <li value="{{ joukkue.joukkueid }}">{{ joukkue.nimi }}
+                    <ul class="pelaajat">
+                      {% if joukkue.joukkueid in jasenet %}
+                        {% for jasen in jasenet[joukkue.joukkueid] %}
+                          <li>{{ jasen }}</li>
+                        {% endfor %}
+                      {% else %}
+                        <li>Ei jäseniä</li>
+                      {% endif %}
+                    </ul>
+                  </li>
+                {% endif %}
               {% endfor %}
             </ul>
           </li>
         {% endfor %}
       </ul>
   </div>
+  <form action="{{ url_for('logout') }}" method="POST">
+    <button type="submit">Logout</button>
+  </form>
 </body>

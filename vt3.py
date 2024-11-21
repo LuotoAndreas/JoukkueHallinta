@@ -30,14 +30,8 @@ def auth(f):
 
 @app.route("/", methods=["GET", "POST"])
 @auth
-def home():
-    message = ""
-
-    if request.method == "POST":
-        message = "hei"
-        
-    
-    return render_template("kirjaudu.html", message=message)
+def home():            
+    return redirect(url_for('kirjaudu'))
 
 @app.route('/kirjaudu',methods=['GET', 'POST'])
 def kirjaudu():    
@@ -77,7 +71,8 @@ def kirjaudu():
         if request.method == "POST":
 
             tunnus = request.form.get("tunnus")
-            salasana = request.form.get("salasana")
+            salasana = request.form.get("salasana")            
+            valittuKilpailu = request.form.get("kilpailu")
 
             m = hashlib.sha512()
             avain = u"jokujokuavain"
@@ -87,6 +82,7 @@ def kirjaudu():
             if tunnus=="ties4080" and m.hexdigest() == '0dc39cbd493c6990b28fd313b35cabf352f6af50db32b222f053815d57d8bd2ff783bf8e134807946d9f587dd084e66185ff4f3370154615e08c745c1b6fcb58':
                 # jos kaikki ok niin asetetaan sessioon tieto kirjautumisesta ja ohjataan laskurisivulle
                 session['kirjautunut'] = "ok"
+                session['valittuKilpailu'] = valittuKilpailu
                 return redirect(url_for('joukkueet'))
         
         # jos ei ollut oikea salasana niin pysytÃ¤Ã¤n kirjautumissivulla. 
@@ -103,6 +99,7 @@ def kirjaudu():
 def logout():
 
    session.pop('kirjautunut', None)
+   session.pop('valittuKilpailu', None)
    return redirect(url_for('kirjaudu'))
 
 
@@ -110,25 +107,46 @@ def logout():
 @auth
 def joukkueet():
     try:
+        kisaId = session.get('valittuKilpailu')
+        
+        
+
         # Yhdistä tietokantaan
         con = sqlite3.connect(os.path.abspath('tietokanta.db'))
         con.row_factory = sqlite3.Row  # Mahdollistaa tulosten käsittelyn dict-tyyppisinä
         con.execute("PRAGMA foreign_keys = ON")  # Ota foreign keys käyttöön
 
-        cur = con.cursor()        
-        cur.execute("SELECT sarjaid, nimi FROM sarjat")        
-        sarjat = cur.fetchall()
+        cur = con.cursor()
 
-        cur.execute("SELECT joukkueid, nimi, jasenet FROM joukkueet")
+        # haetaan kilpailuun liittyvät sarjat
+        cur.execute('SELECT * FROM sarjat WHERE kilpailu = ?', (kisaId,))
+        sarjat = cur.fetchall()  # Haetaan sarjat kilpailusta
+
+        # Lajitellaan sarjat aakkosjärjestykseen
+        sarjat = sorted(sarjat, key=lambda sarja: sarja['nimi'].lower()) 
+        
+        # haetaan kaikki joukkueet 
+        cur.execute('SELECT * FROM joukkueet')        
         joukkueet = cur.fetchall()
 
         
-        # joukkueet aakkosjärjestykseen
-        joukkueet = sorted(joukkueet, key=lambda k: k['nimi'])
-            
+        joukkueetSarjassa = []
+        for sarja in sarjat:
+            for joukkue in joukkueet:
+                if joukkue['sarja'] == sarja['sarjaid']:
+                    joukkueetSarjassa.append(joukkue)
         
+        joukkueet = sorted(joukkueetSarjassa, key=lambda k: k['nimi'])  # Joukkueet aakkosjärjestykseen
 
-        return render_template('joukkueet.html', sarjat=sarjat, joukkueet=joukkueet)
+        jasenet = {}
+        for joukkue in joukkueet:
+            cur.execute('SELECT jasenet FROM joukkueet WHERE joukkueid = ?', (joukkue['joukkueid'],))
+            jasenetData = cur.fetchone()
+            if jasenetData:
+                jasenet[joukkue['joukkueid']] = json.loads(jasenetData['jasenet'])  
+
+
+        return render_template('joukkueet.html', sarjat=sarjat, joukkueet=joukkueet, jasenet=jasenet)
 
     except sqlite3.Error as e:
         # Virhe tietokannan kanssa
