@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="fi" xmlns="http://www.w3.org/1999/xhtml" xml:lang="fi">
+<head>
+<meta charset="utf-8"/>
+<link rel="stylesheet" href="{{ url_for('static', filename='tyylit.css') }}" type="text/css" />
+<title>TIES4080 - Viikkotehtävä 3 - 2024 kesä</title>
+</head>
+
+
+
+<body>
+  <h1>Kilpailun joukkueet</h1>
+  <div class="kilpailut">
+      <ul class="sarjat">
+        {% for sarja in sarjat %}
+          <li value="{{ sarja.sarjaid }}">{{ sarja.nimi }}
+            <ul class="joukkueet">
+              {% for joukkue in joukkueet %} <!-- oletan että joukkueet ovat sarja-osiossa -->
+                <li value="{{ joukkue.joukkueid }}">{{ joukkue.nimi }}
+                  <ul class="pelaajat">
+                    {% for jasen in joukkue.jasenet.split(',') %}
+                      <li value="{{ joukkue.joukkueid }}">{{ jasen }}</li>
+                    {% endfor %}
+                  </ul>
+                </li>
+              {% endfor %}
+            </ul>
+          </li>
+        {% endfor %}
+      </ul>
+  </div>
+</body>

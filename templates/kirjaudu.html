@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="fi" xmlns="http://www.w3.org/1999/xhtml" xml:lang="fi">
+<head>
+
+<link rel="stylesheet" href="{{ url_for('static', filename='tyylit.css') }}" type="text/css" />
+<title>TIES4080 - Viikkotehtävä 3 - 2024 kesä</title>
+</head>
+
+<body>
+    <div class="everything">    
+        <h1>Kirjaudu sisään</h1>
+        <form method="POST">  
+            <div class="kirjautumisvalikko">
+                <label for="kilpailu">Kilpailu</label>
+                <select id="kilpailu" name="kilpailu">
+                    <option value="" disabled selected>--Valitse kilpailu--</option>
+                    {% for kilpailu in kilpailut %}
+                        <option value="{{ kilpailu.kisaid }}">
+                            {{ kilpailu.nimi }} {{ kilpailu.vuosi }}</option>
+                    {% endfor %}
+                </select>    
+                <label for="tunnus">Joukkue</label>   
+                <input type="text" id="tunnus" name="tunnus">            
+                <label for="tunnus">Salasana</label>   
+                <input type="password" id="salasana" name="salasana">
+                <button type="submit">Kirjaudu sisään</button>
+            </div>                 
+        </form>
+
+        {% if message %}
+        <p> {{ message }} </p>
+        {% endif %}
+    </div>
+</body>
+</html>
