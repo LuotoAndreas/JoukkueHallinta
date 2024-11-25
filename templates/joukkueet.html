@@ -6,9 +6,17 @@
 <title>TIES4080 - Viikkotehtävä 3 - 2024 kesä</title>
 </head>
 
-
-
 <body>
+  <div class="header-box">
+    <a href="{{ url_for('kirjaudu') }}">Kilpailut</a> |
+    <span>{{ kilpailu['nimi'] }} ({{ kilpailu['pvm'] }})</span> |
+    <a href="{{ url_for('joukkueet', kilpailu=kilpailu['nimi']) }}">{{ käyttäjä }}</a> |
+    <a href="{{ url_for('joukkueet') }}">Listaa joukkueet</a> |
+    <form action="{{ url_for('logout') }}" method="POST" style="display:inline;">
+      <button type="submit">Logout</button>
+    </form>
+</div>
+
   <h1>Kilpailun joukkueet</h1>
   <div class="kilpailut">
       <ul class="sarjat">

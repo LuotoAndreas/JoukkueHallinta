@@ -35,8 +35,10 @@ def home():
 
 @app.route('/kirjaudu',methods=['GET', 'POST'])
 def kirjaudu():    
+
+    message = ""
     try:
-    
+        
         # yhdistetään tietokantaan
         con = sqlite3.connect(os.path.abspath('tietokanta.db'))
         con.row_factory = sqlite3.Row
@@ -72,20 +74,53 @@ def kirjaudu():
 
             tunnus = request.form.get("tunnus")
             salasana = request.form.get("salasana")            
-            valittuKilpailu = request.form.get("kilpailu")
+            valittuKilpailuId = request.form.get("kilpailu")
+
+            if not valittuKilpailuId:
+                message = "valitse kilpailu"
+                return render_template("kirjaudu.html", kilpailut=kilpailutjaVuosi, message=message)
 
             m = hashlib.sha512()
             avain = u"jokujokuavain"
             m.update(avain.encode("UTF-8"))
             m.update(salasana.encode("UTF-8"))
+
+
+            # haetaan sarjat
+            sarjat = cur.execute("""
+                SELECT sarjaid FROM sarjat WHERE kilpailu = ?
+            """, (valittuKilpailuId,)).fetchall()
+
+            # tarkistetaan onko joukkuenimi olemassa sarjassa joka on valitussa kilpailussa
+            team_exists = False
+            for sarja in sarjat:
+                sarja_id = sarja["sarjaid"]
+
+                # haetaan joukkue 
+                joukkue = cur.execute("""
+                    SELECT nimi FROM joukkueet
+                    WHERE sarja = ? AND nimi = ?
+                """, (sarja_id, tunnus)).fetchone()
+
+                if joukkue:
+                    team_exists = True
+                    break
         
-            if tunnus=="ties4080" and m.hexdigest() == '0dc39cbd493c6990b28fd313b35cabf352f6af50db32b222f053815d57d8bd2ff783bf8e134807946d9f587dd084e66185ff4f3370154615e08c745c1b6fcb58':
+            if team_exists and m.hexdigest() == '0dc39cbd493c6990b28fd313b35cabf352f6af50db32b222f053815d57d8bd2ff783bf8e134807946d9f587dd084e66185ff4f3370154615e08c745c1b6fcb58':
                 # jos kaikki ok niin asetetaan sessioon tieto kirjautumisesta ja ohjataan laskurisivulle
                 session['kirjautunut'] = "ok"
-                session['valittuKilpailu'] = valittuKilpailu
+                session['valittuKilpailuId'] = valittuKilpailuId
+
+                # haetaan kilpailun nimi ja päivämäärä tietokannasta
+                kilpailu = cur.execute("SELECT nimi, alkuaika FROM kilpailut WHERE kisaid = ?", (valittuKilpailuId,)).fetchone()
+                if kilpailu:
+                    session['kilpailu_nimi'] = kilpailu['nimi']
+                    session['kilpailu_pvm'] = kilpailu['alkuaika']
+                session['käyttäjä'] = tunnus  # Tallennetaan käyttäjänimi sessioon
+
                 return redirect(url_for('joukkueet'))
         
-        # jos ei ollut oikea salasana niin pysytÃ¤Ã¤n kirjautumissivulla. 
+        # jos ei ollut oikea salasana niin pysytÃ¤Ã¤n kirjautumissivulla.         
         return render_template("kirjaudu.html", kilpailut=kilpailutjaVuosi)
     
     except sqlite3.Error as e:
@@ -99,7 +134,10 @@ def kirjaudu():
 def logout():
 
    session.pop('kirjautunut', None)
-   session.pop('valittuKilpailu', None)
+   session.pop('valittuKilpailuId', None)
+   session.pop('kilpailu_nimi', None)
+   session.pop('kilpailu_pvm', None)
+   session.pop('käyttäjä', None)
    return redirect(url_for('kirjaudu'))
 
 
@@ -107,9 +145,7 @@ def logout():
 @auth
 def joukkueet():
     try:
-        kisaId = session.get('valittuKilpailu')
-        
-        
+        kisaId = session.get('valittuKilpailuId')        
 
         # Yhdistä tietokantaan
         con = sqlite3.connect(os.path.abspath('tietokanta.db'))
@@ -145,8 +181,14 @@ def joukkueet():
             if jasenetData:
                 jasenet[joukkue['joukkueid']] = json.loads(jasenetData['jasenet'])  
 
+        kilpailu = {
+            'nimi': session.get('kilpailu_nimi'),
+            'pvm': session.get('kilpailu_pvm')
+        }
+        
+        käyttäjä = session.get('käyttäjä')
 
-        return render_template('joukkueet.html', sarjat=sarjat, joukkueet=joukkueet, jasenet=jasenet)
+        return render_template('joukkueet.html', sarjat=sarjat, joukkueet=joukkueet, jasenet=jasenet, kilpailu=kilpailu, käyttäjä=käyttäjä)
 
     except sqlite3.Error as e:
         # Virhe tietokannan kanssa
