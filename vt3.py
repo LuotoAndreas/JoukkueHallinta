@@ -33,6 +33,65 @@ def auth(f):
 def home():            
     return redirect(url_for('kirjaudu'))
 
+@app.route('/kirjauduAdmin',methods=['GET', 'POST'])
+def kirjauduAdmin(): 
+    
+    if request.method == "POST":
+        tunnus = request.form.get("tunnus")
+        salasana = request.form.get("salasana")   
+        error_message = ""                 
+            
+        if not tunnus or not salasana:
+            error_message = "Syötä tunnus ja salasana"
+            return render_template("kirjauduAdmin.html", error_message=error_message)
+
+        # tunnuksen hashaus (en ole varma tarviiko tätä tehdä)
+        u = hashlib.sha512()
+        avain2 = u"jokujokuavain"
+        u.update(avain2.encode("UTF-8"))   
+        u.update(tunnus.encode("UTF-8"))  
+
+        # salasanan hashaus
+        m = hashlib.sha512()
+        avain = u"jokujokuavain"
+        m.update(avain.encode("UTF-8"))
+        m.update(salasana.encode("UTF-8"))      
+        
+        if u.hexdigest() == '96d3cf4d4fe8e5ea39207038ce45a89a37b985c5f85dd4af9d68629c2895caaa947cab7bf9ba570883b14684476ed7d0208f6eaec079d34d1a486b672e472cc9' and m.hexdigest() == '96d3cf4d4fe8e5ea39207038ce45a89a37b985c5f85dd4af9d68629c2895caaa947cab7bf9ba570883b14684476ed7d0208f6eaec079d34d1a486b672e472cc9':
+            session['adminKirjautunut'] = "ok"
+            return redirect(url_for('adminPaasivu'))
+        else:
+            error_message = "väärä tunnus tai salasana"
+            return render_template("kirjauduAdmin.html", error_message=error_message)
+            
+    return render_template("kirjauduAdmin.html")
+
+@app.route('/adminPaasivu',methods=['GET', 'POST'])
+def adminPaasivu(): 
+    try:
+    # yhdistetään tietokantaan
+        con = sqlite3.connect(os.path.abspath('tietokanta.db'))
+        con.row_factory = sqlite3.Row
+        con.execute("PRAGMA foreign_keys = ON")
+
+        cur = con.cursor()
+
+        # haetaan kilpailut ja vuosiluvut
+        cur. execute("SELECT kisaid, nimi, DATE(alkuaika) AS alkuaika FROM kilpailut ORDER BY alkuaika ASC")
+        kilpailut = cur.fetchall()
+
+        
+        return render_template("AdminKilpailut.html", kilpailut=kilpailut)
+    
+    except sqlite3.Error as e:
+        return Response(f"Tietokanta ei aukene: {str(e)}", status=500)
+    except Exception as e:
+        return Response(f"Tapahtui virhe: {str(e)}", status=500)
+
+    finally:
+        con.close()
+
+
 @app.route('/kirjaudu',methods=['GET', 'POST'])
 def kirjaudu():    
 
@@ -267,17 +326,23 @@ def tiedot():
         con.close()
 
 @app.route('/logout', methods=['POST'])
-def logout():
-
-   session.pop('kirjautunut', None)
-   session.pop('valittuKilpailuId', None)
-   session.pop('kilpailu_nimi', None)
-   session.pop('kilpailu_pvm', None)
-   session.pop('käyttäjä', None)
-   session.pop('jasenet', None)
-   session.pop('joukkueid', None)
-   session.pop('pvmIlmanAikaa', None)
-   return redirect(url_for('kirjaudu'))
+def logout():    
+    isAdmin = session.get('adminKirjautunut')
+    session.clear()
+    #session.pop('kirjautunut', None)
+    #session.pop('valittuKilpailuId', None)
+    #session.pop('kilpailu_nimi', None)
+    #session.pop('kilpailu_pvm', None)
+    #session.pop('käyttäjä', None)
+    #session.pop('jasenet', None)
+    #session.pop('joukkueid', None)
+    #session.pop('pvmIlmanAikaa', None)
+    #session.pop('adminKirjautunut', None)
+    
+    if isAdmin == "ok":
+        return redirect(url_for('kirjauduAdmin'))
+    else:
+        return redirect(url_for('kirjaudu'))
 
 
 @app.route('/joukkueet')

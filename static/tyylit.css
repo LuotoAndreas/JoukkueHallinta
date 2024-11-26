@@ -1,5 +1,11 @@
-body {
+.kirjaudu {
     background-color: lightblue;
+}
+
+.ylapalkki {
+    background-color: lightblue;
+    font-weight: bold;
+    padding: 5px;
 }
 
 .kirjautumisvalikko {
@@ -26,3 +32,29 @@ button {
     color: white;
     font-weight: bold;
 }
+
+.joukkuenimi {
+    display: flex;
+    align-items: baseline; /* Align the label and input on the same baseline */
+    gap: 20px; /* Adjust the gap between label and input as needed */
+}
+
+label {
+    font-weight: bold;
+    margin: 0; /* Remove any margin around the label */
+}
+
+input[type="text"] {
+    padding: 3px; /* Add padding inside the input box */
+}
+
+.joukkuesalasana {
+    display: flex;
+    align-items: baseline; /* Align the label and input on the same baseline */
+    gap: 70px; /* Adjust the gap between label and input as needed */
+}
+
+.joukkuesalasana input[type="password"] {
+    padding: 3px; /* Add padding inside the input box */
+}
+

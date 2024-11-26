@@ -7,7 +7,7 @@
 </head>
 
 <body>
-  <div class="header-box">
+  <div class="ylapalkki">
     <a href="{{ url_for('kirjaudu') }}">Kilpailut</a> |
     <span>{{ kilpailu['nimi'] }} ({{ kilpailu['pvm'] }})</span> |
     <a href="{{ url_for('tiedot', kilpailu=kilpailu['nimi']) }}">{{ käyttäjä }}</a> |
@@ -43,7 +43,4 @@
         {% endfor %}
       </ul>
   </div>
-  <form action="{{ url_for('logout') }}" method="POST">
-    <button type="submit">Logout</button>
-  </form>
 </body>

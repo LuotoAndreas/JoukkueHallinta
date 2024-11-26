@@ -10,16 +10,8 @@
     <div class="everything">    
         <h1>Kirjaudu sisään</h1>
         <form method="POST">  
-            <div class="kirjautumisvalikko">
-                <label for="kilpailu">Kilpailu</label>
-                <select id="kilpailu" name="kilpailu">
-                    <option value="" disabled selected>--Valitse kilpailu--</option>
-                    {% for kilpailu in kilpailut %}
-                        <option value="{{ kilpailu.kisaid }}">
-                            {{ kilpailu.nimi }} {{ kilpailu.vuosi }}</option>
-                    {% endfor %}
-                </select>    
-                <label for="tunnus">Joukkue</label>   
+            <div class="kirjautumisvalikko">                
+                <label for="tunnus">Tunnus</label>   
                 <input type="text" id="tunnus" name="tunnus">            
                 <label for="tunnus">Salasana</label>   
                 <input type="password" id="salasana" name="salasana">

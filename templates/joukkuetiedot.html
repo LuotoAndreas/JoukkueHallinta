@@ -8,7 +8,7 @@
 
 </head>
     <body>
-        <div class="header-box">
+        <div class="ylapalkki">
             <a href="{{ url_for('kirjaudu') }}">Kilpailut</a> |
             <span>{{ kilpailu_nimi }} ({{ kilpailu_pvm }})</span> |
             <a href="{{ url_for('tiedot', kilpailu=kilpailu_nimi) }}">{{ joukkue['nimi'] }}</a> |
@@ -21,23 +21,27 @@
         <h1>Joukkue</h1>
         <div class="Joukkuetiedot">     
             <form method="POST">
-                <label for="nimi">Joukkueen nimi</label>   
-            <input type="text" id="nimi" name="nimi" value="{{ joukkue['nimi'] }}">     
+                <div class="joukkuenimi">
+                    <label for="nimi">Joukkueen nimi</label>   
+                    <input type="text" id="nimi" name="nimi" value="{{ joukkue['nimi'] }}">
+                </div>
+                <div class="joukkuesalasana">
+                    <label for="salasana">Salasana</label>   
+                    <input type="password" id="salasana" name="salasana" value="{{ joukkue['salasana'] }}">
+                </div>    
 
-            <label for="salasana">Salasana</label>   
-            <input type="password" id="salasana" name="salasana" value="{{ joukkue['salasana'] }}">
+                <label for="sarja">Sarja</label>
+                    <div id="sarja" name="sarja">
+                        {% for sarja in sarjat %}
+                            <div>                                                        
+                                <label for="sarja_{{ sarja['sarjaid'] }}">{{ sarja['nimi'] }}</label>
+                                <input type="radio" id="sarja_{{ sarja['sarjaid'] }}" name="sarja" value="{{ sarja['sarjaid'] }}"
+                                {% if sarja['sarjaid'] == joukkue['sarja'] %}checked{% endif %}>                            
+                            </div>
+                        {% endfor %}
+                    </div> 
 
-            <label for="sarja">Sarja</label>
-            <select id="sarja" name="sarja">
-                {% for sarja in sarjat %}
-                    <option value="{{ sarja['sarjaid'] }}" 
-                    {% if sarja['sarjaid'] == joukkue['sarja'] %}selected{% endif %}>
-                        {{ sarja['nimi'] }}
-                    </option>
-                {% endfor %}
-            </select>  
-
-            <label for="jasenet">Jäsenet</label>
+                <label for="jasenet">Jäsenet</label>
             <div class="jasenet-list">
                 {% for jasen in jasenet %}
                     <div class="jasen-box">
