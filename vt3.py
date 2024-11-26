@@ -36,7 +36,6 @@ def home():
 @app.route('/kirjaudu',methods=['GET', 'POST'])
 def kirjaudu():    
 
-    message = ""
     try:
         
         # yhdistetään tietokantaan
@@ -76,9 +75,15 @@ def kirjaudu():
             salasana = request.form.get("salasana")            
             valittuKilpailuId = request.form.get("kilpailu")
 
+            print(f'valittu kilpialu id: {valittuKilpailuId}')
+
+            if not tunnus or not salasana:
+                error_message = "Syötä Joukkue ja salasana"
+                return render_template("kirjaudu.html", kilpailut=kilpailutjaVuosi, error_message=error_message)
+
             if not valittuKilpailuId:
-                message = "valitse kilpailu"
-                return render_template("kirjaudu.html", kilpailut=kilpailutjaVuosi, message=message)
+                error_message = "valitse kilpailu"
+                return render_template("kirjaudu.html", kilpailut=kilpailutjaVuosi, error_message=error_message)
 
             m = hashlib.sha512()
             avain = u"jokujokuavain"
@@ -156,23 +161,78 @@ def tiedot():
 
         cur = con.cursor()
 
+        # Haetaan joukkueen tiedot
+        joukkue = cur.execute("""
+            SELECT nimi, salasana, sarja, jasenet
+            FROM joukkueet
+            WHERE joukkueid = ?
+        """, (joukkueid,)).fetchone()
+
+        # Muunnetaan jäsenet listaksi
+        jasenet_list = json.loads(joukkue['jasenet']) if joukkue['jasenet'] else []
+
+        # Haetaan sarjat kilpailusta
+        cur.execute('SELECT * FROM sarjat WHERE kilpailu = ?', (kilpailuid,))
+        sarjat = cur.fetchall()
+
         if request.method == "POST":
-
-            joukkueenNimi = request.form.get("nimi")
-            salasana = request.form.get("salasana")            
+            joukkueenNimi = request.form.get("nimi").strip()
+            salasana = request.form.get("salasana").strip()  
             sarja = request.form.get("sarja")
-            jasenet = request.form.getlist('jasenet')
-            jasenet_json = json.dumps([jasen for jasen in jasenet if jasen.strip()])
+            jasenet = [jasen.strip() for jasen in request.form.getlist('jasenet') if jasen.strip()]
             error_message = ""
-
+            
             # Tarkistetaan, että joukkueen nimi ei ole tyhjä
-            if not joukkueenNimi.strip():
+            if not joukkueenNimi:
                 error_message = "Joukkueen nimi ei saa olla tyhjä!"
+                # Jos virheilmoitus on, palauta lomake takaisin
                 return render_template("joukkuetiedot.html", 
                                        kilpailu_nimi=kilpailu_nimi, 
                                        kilpailu_pvm=kilpailu_pvm, 
-                                       jasenet=jasenet_json,
-                                       error_message=error_message)  # Palautetaan lomake takaisin
+                                       joukkue=joukkue,  # Lähetetään nykyiset joukkueen tiedot
+                                       sarjat=sarjat,     # Lähetetään kaikki sarjat
+                                       jasenet=jasenet_list,  # Lähetetään jäsenet
+                                       error_message=error_message)  # Virheilmoitus palautetaan
+            
+            # Tarkistetaan, että joukkueen nimi ei ole jo käytössä samassa kilpailussa ja sarjassa
+            cur.execute("""
+                SELECT COUNT(*) 
+                FROM joukkueet 
+                WHERE LOWER(nimi) = LOWER(?) AND sarja = ? AND joukkueid != ?
+            """, (joukkueenNimi, sarja, joukkueid))
+
+            if cur.fetchone()[0] > 0:
+                error_message = "Joukkueen nimi on jo käytössä samassa kilpailussa ja sarjassa!"
+                return render_template("joukkuetiedot.html", 
+                                       kilpailu_nimi=kilpailu_nimi, 
+                                       kilpailu_pvm=kilpailu_pvm, 
+                                       joukkue=joukkue,  
+                                       sarjat=sarjat,     
+                                       jasenet=jasenet_list,  
+                                       error_message=error_message)
+            
+            if len(jasenet) < 2:
+                error_message = "Joukkueessa tulee olla vähintään 2 jäsentä"
+                return render_template("joukkuetiedot.html", 
+                                       kilpailu_nimi=kilpailu_nimi, 
+                                       kilpailu_pvm=kilpailu_pvm, 
+                                       joukkue=joukkue,  # Lähetetään nykyiset joukkueen tiedot
+                                       sarjat=sarjat,     # Lähetetään kaikki sarjat
+                                       jasenet=jasenet_list,  # Lähetetään jäsenet
+                                       error_message=error_message)  # Virheilmoitus palautetaan
+            
+            # Tarkistetaan, että kaikki jäsenten nimet ovat uniikkeja (case insensitive)
+            if len(jasenet) != len(set(map(lambda x: x.lower(), jasenet))):
+                error_message = "Jäsenet eivät saa olla saman nimisiä!"
+                return render_template("joukkuetiedot.html", 
+                                       kilpailu_nimi=kilpailu_nimi, 
+                                       kilpailu_pvm=kilpailu_pvm, 
+                                       jasenet=jasenet, 
+                                       error_message=error_message, 
+                                       joukkue=joukkue, 
+                                       sarjat=sarjat)
+            
+            jasenet_json = json.dumps(jasenet)
 
             try:
                 cur.execute("""
@@ -188,21 +248,7 @@ def tiedot():
             finally:
                 con.close()
 
-        # Haetaan joukkueen tiedot
-        joukkue = cur.execute("""
-            SELECT nimi, salasana, sarja, jasenet
-            FROM joukkueet
-            WHERE joukkueid = ?
-        """, (joukkueid,)).fetchone()
-
-        # Muunnetaan jäsenet listaksi
-        jasenet_list = json.loads(joukkue['jasenet']) if joukkue['jasenet'] else []
-
-        # Haetaan sarjat kilpailusta
-        cur.execute('SELECT * FROM sarjat WHERE kilpailu = ?', (kilpailuid,))
-        sarjat = cur.fetchall()
-
-        # Palautetaan tiedot mallipohjaan
+        # Palautetaan tiedot mallipohjaan ilman virheilmoitusta
         return render_template(
             "joukkuetiedot.html",
             kilpailu_nimi=kilpailu_nimi,
