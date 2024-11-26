@@ -10,7 +10,7 @@
   <div class="header-box">
     <a href="{{ url_for('kirjaudu') }}">Kilpailut</a> |
     <span>{{ kilpailu['nimi'] }} ({{ kilpailu['pvm'] }})</span> |
-    <a href="{{ url_for('joukkueet', kilpailu=kilpailu['nimi']) }}">{{ käyttäjä }}</a> |
+    <a href="{{ url_for('tiedot', kilpailu=kilpailu['nimi']) }}">{{ käyttäjä }}</a> |
     <a href="{{ url_for('joukkueet') }}">Listaa joukkueet</a> |
     <form action="{{ url_for('logout') }}" method="POST" style="display:inline;">
       <button type="submit">Logout</button>

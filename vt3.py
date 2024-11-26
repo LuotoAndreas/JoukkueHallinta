@@ -1,7 +1,7 @@
 from datetime import datetime
 import os
 import sqlite3
-from flask import Flask, request, Response, render_template, session, redirect, url_for
+from flask import Flask, flash, request, Response, render_template, session, redirect, url_for
 from jinja2 import Template, Environment, FileSystemLoader
 from functools import wraps
 import json
@@ -111,12 +111,20 @@ def kirjaudu():
                 session['kirjautunut'] = "ok"
                 session['valittuKilpailuId'] = valittuKilpailuId
 
+                joukkue = cur.execute("""
+                    SELECT joukkueid, nimi FROM joukkueet
+                    WHERE sarja = ? AND nimi = ?
+                    """, (sarja_id, tunnus)).fetchone()
+                
+                if joukkue:
+                    session['joukkueid'] = joukkue['joukkueid']  # Tallennetaan joukkueen ID
+                    session['käyttäjä'] = joukkue['nimi'] 
+
                 # haetaan kilpailun nimi ja päivämäärä tietokannasta
-                kilpailu = cur.execute("SELECT nimi, alkuaika FROM kilpailut WHERE kisaid = ?", (valittuKilpailuId,)).fetchone()
+                kilpailu = cur.execute("SELECT nimi, alkuaika, kisaid FROM kilpailut WHERE kisaid = ?", (valittuKilpailuId,)).fetchone()
                 if kilpailu:
                     session['kilpailu_nimi'] = kilpailu['nimi']
                     session['kilpailu_pvm'] = kilpailu['alkuaika']
-                session['käyttäjä'] = tunnus  # Tallennetaan käyttäjänimi sessioon
 
                 return redirect(url_for('joukkueet'))
         
@@ -130,6 +138,88 @@ def kirjaudu():
     finally:
         con.close()
 
+
+@app.route('/tiedot', methods=['GET', 'POST'])
+@auth
+def tiedot():
+    try:
+        # Haetaan kilpailun tiedot sessiosta
+        joukkueid = session.get('joukkueid')
+        kilpailu_nimi = session.get('kilpailu_nimi')
+        kilpailu_pvm = session.get('kilpailu_pvm')
+        kilpailuid = session.get('valittuKilpailuId')
+
+        # Yhdistä tietokantaan
+        con = sqlite3.connect(os.path.abspath('tietokanta.db'))
+        con.row_factory = sqlite3.Row  # Mahdollistaa sanakirjatulokset
+        con.execute("PRAGMA foreign_keys = ON")
+
+        cur = con.cursor()
+
+        if request.method == "POST":
+
+            joukkueenNimi = request.form.get("nimi")
+            salasana = request.form.get("salasana")            
+            sarja = request.form.get("sarja")
+            jasenet = request.form.getlist('jasenet')
+            jasenet_json = json.dumps([jasen for jasen in jasenet if jasen.strip()])
+            error_message = ""
+
+            # Tarkistetaan, että joukkueen nimi ei ole tyhjä
+            if not joukkueenNimi.strip():
+                error_message = "Joukkueen nimi ei saa olla tyhjä!"
+                return render_template("joukkuetiedot.html", 
+                                       kilpailu_nimi=kilpailu_nimi, 
+                                       kilpailu_pvm=kilpailu_pvm, 
+                                       jasenet=jasenet_json,
+                                       error_message=error_message)  # Palautetaan lomake takaisin
+
+            try:
+                cur.execute("""
+                    UPDATE joukkueet
+                    SET nimi = ?, salasana = ?, sarja = ?, jasenet = ?
+                    WHERE joukkueid = ?
+                """, (joukkueenNimi, salasana, sarja, jasenet_json, joukkueid))
+                con.commit()
+
+                return redirect(url_for('joukkueet'))
+            except sqlite3.IntegrityError:
+                flash('Joukkueen nimi on jo käytössä.')
+            finally:
+                con.close()
+
+        # Haetaan joukkueen tiedot
+        joukkue = cur.execute("""
+            SELECT nimi, salasana, sarja, jasenet
+            FROM joukkueet
+            WHERE joukkueid = ?
+        """, (joukkueid,)).fetchone()
+
+        # Muunnetaan jäsenet listaksi
+        jasenet_list = json.loads(joukkue['jasenet']) if joukkue['jasenet'] else []
+
+        # Haetaan sarjat kilpailusta
+        cur.execute('SELECT * FROM sarjat WHERE kilpailu = ?', (kilpailuid,))
+        sarjat = cur.fetchall()
+
+        # Palautetaan tiedot mallipohjaan
+        return render_template(
+            "joukkuetiedot.html",
+            kilpailu_nimi=kilpailu_nimi,
+            kilpailu_pvm=kilpailu_pvm,
+            joukkue=joukkue,
+            sarjat=sarjat,
+            jasenet=jasenet_list
+        )
+
+    except sqlite3.Error as e:
+        return Response(f"Tietokanta ei aukene: {str(e)}", status=500)
+    except Exception as e:
+        return Response(f"Tapahtui virhe: {str(e)}", status=500)
+
+    finally:
+        con.close()
+
 @app.route('/logout', methods=['POST'])
 def logout():
 
@@ -138,6 +228,9 @@ def logout():
    session.pop('kilpailu_nimi', None)
    session.pop('kilpailu_pvm', None)
    session.pop('käyttäjä', None)
+   session.pop('jasenet', None)
+   session.pop('joukkueid', None)
+   session.pop('pvmIlmanAikaa', None)
    return redirect(url_for('kirjaudu'))
 
 
@@ -145,7 +238,8 @@ def logout():
 @auth
 def joukkueet():
     try:
-        kisaId = session.get('valittuKilpailuId')        
+        kisaId = session.get('valittuKilpailuId')  
+        käyttäjä = session.get('käyttäjä')      
 
         # Yhdistä tietokantaan
         con = sqlite3.connect(os.path.abspath('tietokanta.db'))
@@ -156,7 +250,7 @@ def joukkueet():
 
         # haetaan kilpailuun liittyvät sarjat
         cur.execute('SELECT * FROM sarjat WHERE kilpailu = ?', (kisaId,))
-        sarjat = cur.fetchall()  # Haetaan sarjat kilpailusta
+        sarjat = cur.fetchall()  # Haetaan sarjat kilpailusta       
 
         # Lajitellaan sarjat aakkosjärjestykseen
         sarjat = sorted(sarjat, key=lambda sarja: sarja['nimi'].lower()) 
@@ -173,6 +267,10 @@ def joukkueet():
                     joukkueetSarjassa.append(joukkue)
         
         joukkueet = sorted(joukkueetSarjassa, key=lambda k: k['nimi'])  # Joukkueet aakkosjärjestykseen
+        
+        joukkueDict = [dict(joukkue) for joukkue in joukkueet]
+        session['joukkueet'] = joukkueDict
+
 
         jasenet = {}
         for joukkue in joukkueet:
@@ -180,13 +278,17 @@ def joukkueet():
             jasenetData = cur.fetchone()
             if jasenetData:
                 jasenet[joukkue['joukkueid']] = json.loads(jasenetData['jasenet'])  
+        
+        
+        session['jasenet'] = jasenet
+
+        session['pvmIlmanAikaa'] = session.get('kilpailu_pvm').split(' ')[0]
 
         kilpailu = {
             'nimi': session.get('kilpailu_nimi'),
-            'pvm': session.get('kilpailu_pvm')
-        }
+            'pvm': session.get('pvmIlmanAikaa')
+        }          
         
-        käyttäjä = session.get('käyttäjä')
 
         return render_template('joukkueet.html', sarjat=sarjat, joukkueet=joukkueet, jasenet=jasenet, kilpailu=kilpailu, käyttäjä=käyttäjä)
 

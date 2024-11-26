@@ -8,13 +8,61 @@
 
 </head>
     <body>
+        <div class="header-box">
+            <a href="{{ url_for('kirjaudu') }}">Kilpailut</a> |
+            <span>{{ kilpailu_nimi }} ({{ kilpailu_pvm }})</span> |
+            <a href="{{ url_for('tiedot', kilpailu=kilpailu_nimi) }}">{{ joukkue['nimi'] }}</a> |
+            <a href="{{ url_for('joukkueet') }}">Listaa joukkueet</a> |
+            <form action="{{ url_for('logout') }}" method="POST" style="display:inline;">
+              <button type="submit">Logout</button>
+            </form>
+        </div>
 
         <h1>Joukkue</h1>
-        <label>Joukkueen nimi</label>
-        <label>Salasana</label>
-        <label>Sarja</label>
-        <label>Jäsenet</label>
-        <p>My first paragraph.</p>
+        <div class="Joukkuetiedot">     
+            <form method="POST">
+                <label for="nimi">Joukkueen nimi</label>   
+            <input type="text" id="nimi" name="nimi" value="{{ joukkue['nimi'] }}">     
 
+            <label for="salasana">Salasana</label>   
+            <input type="password" id="salasana" name="salasana" value="{{ joukkue['salasana'] }}">
+
+            <label for="sarja">Sarja</label>
+            <select id="sarja" name="sarja">
+                {% for sarja in sarjat %}
+                    <option value="{{ sarja['sarjaid'] }}" 
+                    {% if sarja['sarjaid'] == joukkue['sarja'] %}selected{% endif %}>
+                        {{ sarja['nimi'] }}
+                    </option>
+                {% endfor %}
+            </select>  
+
+            <label for="jasenet">Jäsenet</label>
+            <div class="jasenet-list">
+                {% for jasen in jasenet %}
+                    <div class="jasen-box">
+                        <label for="jasen_{{ loop.index }}">Jäsen {{ loop.index }}</label>
+                        <input type="text" id="jasen_{{ loop.index }}" name="jasenet" value="{{ jasen }}" class="jasen-nimi">
+                    </div>
+                {% endfor %}
+                
+                <!-- Lisää kenttä uusille jäsenille, jos on vähemmän kuin 5 jäsentä -->
+                {% if jasenet|length < 5 %}
+                    {% for i in range(jasenet|length, 5) %}
+                        <div class="jasen-box">
+                            <label for="jasen_{{ i + 1 }}">Jäsen {{ i + 1 }}</label>
+                            <input type="text" id="jasen_{{ i + 1 }}" name="jasenet" class="jasen-nimi">
+                        </div>
+                    {% endfor %}
+                {% endif %}
+            </div>    
+            {% if error_message %}
+                <div class="alert alert-danger">
+                    {{ error_message }}
+                </div>
+            {% endif %}       
+            <button type="submit">Tallenna</button>
+            </form>      
+        </div>
     </body>
 </html>
