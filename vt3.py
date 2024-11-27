@@ -16,13 +16,23 @@ app.config.update(
 )
 app.secret_key = b'U\xfc\x92"DGw\xff\xcfG\x06\x90\xe7\x9d\x9d\xc7~\xee\xe3\xf1\xc2\xb8\xcb\xa5'
 
+def admin_auth(f):
+    ''' TÃ¤mÃ¤ decorator hoitaa kirjautumisen tarkistamisen ja ohjaa tarvittaessa kirjautumissivulle
+    '''
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        # tÃ¤ssÃ¤ voisi olla monimutkaisempiakin tarkistuksia mutta yleensÃ¤ tÃ¤mÃ¤ riittÃ¤Ã¤        
+        if not 'adminKirjautunut' in session:
+            return redirect(url_for('admin'))
+        return f(*args, **kwargs)
+    return decorated
 
 def auth(f):
     ''' TÃ¤mÃ¤ decorator hoitaa kirjautumisen tarkistamisen ja ohjaa tarvittaessa kirjautumissivulle
     '''
     @wraps(f)
     def decorated(*args, **kwargs):
-        # tÃ¤ssÃ¤ voisi olla monimutkaisempiakin tarkistuksia mutta yleensÃ¤ tÃ¤mÃ¤ riittÃ¤Ã¤
+        # tÃ¤ssÃ¤ voisi olla monimutkaisempiakin tarkistuksia mutta yleensÃ¤ tÃ¤mÃ¤ riittÃ¤Ã¤        
         if not 'kirjautunut' in session:
             return redirect(url_for('kirjaudu'))
         return f(*args, **kwargs)
@@ -33,8 +43,8 @@ def auth(f):
 def home():            
     return redirect(url_for('kirjaudu'))
 
-@app.route('/kirjauduAdmin',methods=['GET', 'POST'])
-def kirjauduAdmin(): 
+@app.route('/admin',methods=['GET', 'POST'])
+def admin(): 
     
     if request.method == "POST":
         tunnus = request.form.get("tunnus")
@@ -67,6 +77,7 @@ def kirjauduAdmin():
     return render_template("kirjauduAdmin.html")
 
 @app.route('/adminPaasivu',methods=['GET', 'POST'])
+@admin_auth
 def adminPaasivu(): 
     try:
     # yhdistetään tietokantaan
@@ -81,8 +92,101 @@ def adminPaasivu():
         kilpailut = cur.fetchall()
 
         
-        return render_template("AdminKilpailut.html", kilpailut=kilpailut)
+        return render_template("adminKilpailut.html", kilpailut=kilpailut)
     
+    except sqlite3.Error as e:
+        return Response(f"Tietokanta ei aukene: {str(e)}", status=500)
+    except Exception as e:
+        return Response(f"Tapahtui virhe: {str(e)}", status=500)
+
+    finally:
+        con.close()
+
+
+@app.route('/kilpailu/<int:kisaid>')
+def kilpailu(kisaid):
+
+    try:
+        # yhdistetään tietokantaan
+        con = sqlite3.connect(os.path.abspath('tietokanta.db'))
+        con.row_factory = sqlite3.Row
+        con.execute("PRAGMA foreign_keys = ON")
+
+        cur = con.cursor()
+
+        # haetaan sarjat jotka kuuluvat kilpailuun
+        cur.execute("""SELECT sarjaid, nimi FROM sarjat WHERE kilpailu = ?""", (kisaid,))
+        sarjat = cur.fetchall()
+
+        return render_template("adminSarjat.html", sarjat=sarjat)
+        
+    except sqlite3.Error as e:
+        return Response(f"Tietokanta ei aukene: {str(e)}", status=500)
+    except Exception as e:
+        return Response(f"Tapahtui virhe: {str(e)}", status=500)
+
+    finally:
+        con.close()
+
+
+@app.route('/sarja/<int:sarjaid>')
+def sarja(sarjaid):
+    try:
+        # yhdistetään tietokantaan
+        con = sqlite3.connect(os.path.abspath('tietokanta.db'))
+        con.row_factory = sqlite3.Row
+        con.execute("PRAGMA foreign_keys = ON")
+
+        cur = con.cursor()
+
+        # haetaan joukkueet jotka kuuluvat sarjaan
+        cur.execute("""SELECT joukkueid, nimi FROM joukkueet WHERE sarja = ?""", (sarjaid,))
+        joukkueet = cur.fetchall()
+
+        return render_template("adminSarjanJoukkueet.html", joukkueet=joukkueet)
+    
+    except sqlite3.Error as e:
+        return Response(f"Tietokanta ei aukene: {str(e)}", status=500)
+    except Exception as e:
+        return Response(f"Tapahtui virhe: {str(e)}", status=500)
+
+    finally:
+        con.close()
+
+
+@app.route('/joukkue/<int:joukkueid>')
+def joukkue(joukkueid):
+    try: 
+        # yhdistetään tietokantaan
+        con = sqlite3.connect(os.path.abspath('tietokanta.db'))
+        con.row_factory = sqlite3.Row
+        con.execute("PRAGMA foreign_keys = ON")
+
+        cur = con.cursor()
+
+        # haetaan joukkueet jotka kuuluvat sarjaan
+        cur.execute("""SELECT * FROM joukkueet WHERE joukkueid = ?""", (joukkueid,))
+        joukkue = cur.fetchone()
+
+        if joukkue:
+            jasenet = json.loads(joukkue['jasenet'])
+        else:
+            jasenet = []
+
+        # Haetaan sarja johon tämä joukkue kuuluu
+        sarja_id = joukkue['sarja']
+
+        # Haetaan kilpailu johon tämä sarja kuuluu
+        cur.execute("""SELECT kilpailu FROM sarjat WHERE sarjaid = ?""", (sarja_id,))
+        kilpailu_id = cur.fetchone()['kilpailu']
+
+        # Haetaan kaikki sarjat jotka kuuluvat tähän kilpailuun
+        cur.execute("""SELECT * FROM sarjat WHERE kilpailu = ?""", (kilpailu_id,))
+        sarjat = cur.fetchall()   
+
+
+        return render_template("adminJoukkueTiedot.html", joukkue=joukkue, sarjat=sarjat, jasenet=jasenet)
+
     except sqlite3.Error as e:
         return Response(f"Tietokanta ei aukene: {str(e)}", status=500)
     except Exception as e:
@@ -340,7 +444,7 @@ def logout():
     #session.pop('adminKirjautunut', None)
     
     if isAdmin == "ok":
-        return redirect(url_for('kirjauduAdmin'))
+        return redirect(url_for('admin'))
     else:
         return redirect(url_for('kirjaudu'))
 
