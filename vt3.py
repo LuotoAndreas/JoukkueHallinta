@@ -92,7 +92,7 @@ def adminPaasivu():
         kilpailut = cur.fetchall()
 
         
-        return render_template("adminKilpailut.html", kilpailut=kilpailut)
+        return render_template("adminKilpailut.html", kilpailut=kilpailut, sarjaid=session.get('sarjaid'), joukkueid=session.get('joukkueid'), kisaid=session.get('kisaid'))
     
     except sqlite3.Error as e:
         return Response(f"Tietokanta ei aukene: {str(e)}", status=500)
@@ -103,9 +103,9 @@ def adminPaasivu():
         con.close()
 
 
-@app.route('/kilpailu/<int:kisaid>')
+@app.route('/kilpailu/<int:kisaid>', methods=['GET', 'POST'])
 def kilpailu(kisaid):
-
+    session['kisaid'] = kisaid
     try:
         # yhdistetään tietokantaan
         con = sqlite3.connect(os.path.abspath('tietokanta.db'))
@@ -118,7 +118,7 @@ def kilpailu(kisaid):
         cur.execute("""SELECT sarjaid, nimi FROM sarjat WHERE kilpailu = ?""", (kisaid,))
         sarjat = cur.fetchall()
 
-        return render_template("adminSarjat.html", sarjat=sarjat)
+        return render_template("adminSarjat.html", sarjat=sarjat, sarjaid=session.get('sarjaid'), joukkueid=session.get('joukkueid'), kisaid=kisaid)
         
     except sqlite3.Error as e:
         return Response(f"Tietokanta ei aukene: {str(e)}", status=500)
@@ -131,6 +131,7 @@ def kilpailu(kisaid):
 
 @app.route('/sarja/<int:sarjaid>')
 def sarja(sarjaid):
+    session['sarjaid'] = sarjaid
     try:
         # yhdistetään tietokantaan
         con = sqlite3.connect(os.path.abspath('tietokanta.db'))
@@ -143,7 +144,7 @@ def sarja(sarjaid):
         cur.execute("""SELECT joukkueid, nimi FROM joukkueet WHERE sarja = ?""", (sarjaid,))
         joukkueet = cur.fetchall()
 
-        return render_template("adminSarjanJoukkueet.html", joukkueet=joukkueet)
+        return render_template("adminSarjanJoukkueet.html", joukkueet=joukkueet, sarjaid=sarjaid, joukkueid=session.get('joukkueid'), kisaid=session.get('kisaid'))
     
     except sqlite3.Error as e:
         return Response(f"Tietokanta ei aukene: {str(e)}", status=500)
@@ -154,15 +155,18 @@ def sarja(sarjaid):
         con.close()
 
 
-@app.route('/joukkue/<int:joukkueid>')
+@app.route('/joukkue/<int:joukkueid>', methods=['GET', 'POST'])
 def joukkue(joukkueid):
+    session['joukkueid'] = joukkueid
     try: 
+        kisaid = session.get('kisaid')
+
         # yhdistetään tietokantaan
         con = sqlite3.connect(os.path.abspath('tietokanta.db'))
         con.row_factory = sqlite3.Row
         con.execute("PRAGMA foreign_keys = ON")
 
-        cur = con.cursor()
+        cur = con.cursor()       
 
         # haetaan joukkueet jotka kuuluvat sarjaan
         cur.execute("""SELECT * FROM joukkueet WHERE joukkueid = ?""", (joukkueid,))
@@ -182,10 +186,43 @@ def joukkue(joukkueid):
 
         # Haetaan kaikki sarjat jotka kuuluvat tähän kilpailuun
         cur.execute("""SELECT * FROM sarjat WHERE kilpailu = ?""", (kilpailu_id,))
-        sarjat = cur.fetchall()   
+        sarjat = cur.fetchall()                   
 
+        # POST pyyntö
+        if request.method == "POST":
+            # Päivitetään joukkueen tiedot käyttämällä handleJoukkueUpdate funktiota
+            result = handleJoukkueUpdate(request, con, cur, joukkueid, joukkue, sarjat, jasenet)
 
-        return render_template("adminJoukkueTiedot.html", joukkue=joukkue, sarjat=sarjat, jasenet=jasenet)
+            # Tarkistetaan, onko virheilmoitus
+            if result["error_message"]:
+                return render_template(
+                    "adminJoukkueTiedot.html",
+                    joukkue=joukkue,
+                    sarjat=sarjat,
+                    jasenet=jasenet,
+                    kisaid=kisaid,
+                    error_message=result["error_message"]
+                )
+
+            # Päivitetty onnistuneesti, palataan takaisin joukkueen tietoihin
+            return render_template(
+                "adminJoukkueTiedot.html",
+                joukkue=joukkue,
+                sarjat=sarjat,
+                jasenet=jasenet,
+                kisaid=kisaid
+            )       
+        
+        # Renderöidään näkymä GET pyynnölle
+        return render_template(
+            "adminJoukkueTiedot.html",
+            joukkue=joukkue,
+            sarjat=sarjat,
+            jasenet=jasenet,
+            kisaid=kisaid,
+            sarjaid=session.get('sarjaid'),
+            joukkueid=joukkueid
+        )
 
     except sqlite3.Error as e:
         return Response(f"Tietokanta ei aukene: {str(e)}", status=500)
@@ -194,6 +231,121 @@ def joukkue(joukkueid):
 
     finally:
         con.close()
+
+
+
+@app.route('/tiedot', methods=['GET', 'POST'])
+@auth
+def tiedot():
+    try:
+        # Haetaan kilpailun tiedot sessiosta
+        joukkueid = session.get('joukkueid')
+        kilpailu_nimi = session.get('kilpailu_nimi')
+        kilpailu_pvm = session.get('kilpailu_pvm')
+        kilpailuid = session.get('valittuKilpailuId')
+
+        # Yhdistä tietokantaan
+        con = sqlite3.connect(os.path.abspath('tietokanta.db'))
+        con.row_factory = sqlite3.Row  # Mahdollistaa sanakirjatulokset
+        con.execute("PRAGMA foreign_keys = ON")
+
+        cur = con.cursor()
+
+        # Haetaan joukkueen tiedot
+        joukkue = cur.execute("""
+            SELECT nimi, salasana, sarja, jasenet
+            FROM joukkueet
+            WHERE joukkueid = ?
+        """, (joukkueid,)).fetchone()
+
+        # Muunnetaan jäsenet listaksi
+        jasenet_list = json.loads(joukkue['jasenet']) if joukkue['jasenet'] else []
+
+        # Haetaan sarjat kilpailusta
+        cur.execute('SELECT * FROM sarjat WHERE kilpailu = ?', (kilpailuid,))
+        sarjat = cur.fetchall()
+
+        # Handle POST requests
+        if request.method == "POST":
+            result = handleJoukkueUpdate(request, con, cur, joukkueid, joukkue, sarjat, jasenet_list)
+            if result["error_message"]:
+                return render_template(
+                    "joukkuetiedot.html",
+                    kilpailu_nimi=kilpailu_nimi,
+                    joukkue=joukkue,
+                    sarjat=sarjat,
+                    jasenet=jasenet_list,
+                    kilpailu_pvm=kilpailu_pvm,
+                    error_message=result["error_message"],
+                )
+
+            # jos päivitys on onnistunut niin ohjataan joukkueet sivulle
+            return redirect(url_for("joukkueet"))
+
+        # renderöidään joukkuetiedot sivu
+        return render_template(
+            "joukkuetiedot.html",
+            kilpailu_nimi=kilpailu_nimi,
+            kilpailu_pvm=kilpailu_pvm,
+            joukkue=joukkue,
+            sarjat=sarjat,
+            jasenet=jasenet_list,
+        )
+
+    except sqlite3.Error as e:
+        return Response(f"Tietokanta ei aukene: {str(e)}", status=500)
+    except Exception as e:
+        return Response(f"Tapahtui virhe: {str(e)}", status=500)
+
+    finally:
+        con.close()
+
+# joukkueen tietojen muokkaus ja tallennus 
+def handleJoukkueUpdate(request, con, cur, joukkueid, joukkue, sarjat, jasenet_list):
+   
+    joukkueenNimi = request.form.get("nimi", "").strip()
+    salasana = request.form.get("salasana", "").strip()
+    sarja = request.form.get("sarja")
+    jasenet = [jasen.strip() for jasen in request.form.getlist('jasenet[]') if jasen.strip()]
+
+    # varmistetaan että joukkueen nimi on syötetty
+    if not joukkueenNimi:
+        return {"error_message": "Joukkueen nimi ei saa olla tyhjä!"}
+    
+    # jäseniä tulee olla vähintään kaksi
+    if len(jasenet) < 2:
+        return {"error_message": "Joukkueessa tulee olla vähintään 2 jäsentä"}
+
+    # jäsenillä on ainutlaatuiset nimet
+    if len(jasenet) != len(set(map(str.lower, jasenet))):
+        return {"error_message": "Jäsenet eivät saa olla saman nimisiä!"}
+
+    # joukkueen nimi on ainutlaatuinen
+    cur.execute("""
+        SELECT COUNT(*) 
+        FROM joukkueet 
+        WHERE LOWER(nimi) = LOWER(?) AND sarja = ? AND joukkueid != ?
+    """, (joukkueenNimi, sarja, joukkueid))
+
+    if cur.fetchone()[0] > 0:
+        return {"error_message": "Joukkueen nimi on jo käytössä samassa kilpailussa ja sarjassa!"}
+
+    # serialisoidaan jäsenet
+    jasenet_json = json.dumps(jasenet)
+
+    try:
+        cur.execute(
+            """
+            UPDATE joukkueet
+            SET nimi = ?, salasana = ?, sarja = ?, jasenet = ?
+            WHERE joukkueid = ?
+            """,
+            (joukkueenNimi, salasana, sarja, jasenet_json, joukkueid),
+        )
+        con.commit()
+        return {"error_message": None}  # No errors
+    except sqlite3.IntegrityError:
+        return {"error_message": "Joukkueen nimi on jo käytössä."}
 
 
 @app.route('/kirjaudu',methods=['GET', 'POST'])
@@ -296,7 +448,7 @@ def kirjaudu():
 
                 return redirect(url_for('joukkueet'))
         
-        # jos ei ollut oikea salasana niin pysytÃ¤Ã¤n kirjautumissivulla.         
+        # jos ei ollut oikea salasana niin pysytään kirjautumissivulla.         
         return render_template("kirjaudu.html", kilpailut=kilpailutjaVuosi)
     
     except sqlite3.Error as e:
@@ -306,128 +458,6 @@ def kirjaudu():
     finally:
         con.close()
 
-
-@app.route('/tiedot', methods=['GET', 'POST'])
-@auth
-def tiedot():
-    try:
-        # Haetaan kilpailun tiedot sessiosta
-        joukkueid = session.get('joukkueid')
-        kilpailu_nimi = session.get('kilpailu_nimi')
-        kilpailu_pvm = session.get('kilpailu_pvm')
-        kilpailuid = session.get('valittuKilpailuId')
-
-        # Yhdistä tietokantaan
-        con = sqlite3.connect(os.path.abspath('tietokanta.db'))
-        con.row_factory = sqlite3.Row  # Mahdollistaa sanakirjatulokset
-        con.execute("PRAGMA foreign_keys = ON")
-
-        cur = con.cursor()
-
-        # Haetaan joukkueen tiedot
-        joukkue = cur.execute("""
-            SELECT nimi, salasana, sarja, jasenet
-            FROM joukkueet
-            WHERE joukkueid = ?
-        """, (joukkueid,)).fetchone()
-
-        # Muunnetaan jäsenet listaksi
-        jasenet_list = json.loads(joukkue['jasenet']) if joukkue['jasenet'] else []
-
-        # Haetaan sarjat kilpailusta
-        cur.execute('SELECT * FROM sarjat WHERE kilpailu = ?', (kilpailuid,))
-        sarjat = cur.fetchall()
-
-        if request.method == "POST":
-            joukkueenNimi = request.form.get("nimi").strip()
-            salasana = request.form.get("salasana").strip()  
-            sarja = request.form.get("sarja")
-            jasenet = [jasen.strip() for jasen in request.form.getlist('jasenet') if jasen.strip()]
-            error_message = ""
-            
-            # Tarkistetaan, että joukkueen nimi ei ole tyhjä
-            if not joukkueenNimi:
-                error_message = "Joukkueen nimi ei saa olla tyhjä!"
-                # Jos virheilmoitus on, palauta lomake takaisin
-                return render_template("joukkuetiedot.html", 
-                                       kilpailu_nimi=kilpailu_nimi, 
-                                       kilpailu_pvm=kilpailu_pvm, 
-                                       joukkue=joukkue,  # Lähetetään nykyiset joukkueen tiedot
-                                       sarjat=sarjat,     # Lähetetään kaikki sarjat
-                                       jasenet=jasenet_list,  # Lähetetään jäsenet
-                                       error_message=error_message)  # Virheilmoitus palautetaan
-            
-            # Tarkistetaan, että joukkueen nimi ei ole jo käytössä samassa kilpailussa ja sarjassa
-            cur.execute("""
-                SELECT COUNT(*) 
-                FROM joukkueet 
-                WHERE LOWER(nimi) = LOWER(?) AND sarja = ? AND joukkueid != ?
-            """, (joukkueenNimi, sarja, joukkueid))
-
-            if cur.fetchone()[0] > 0:
-                error_message = "Joukkueen nimi on jo käytössä samassa kilpailussa ja sarjassa!"
-                return render_template("joukkuetiedot.html", 
-                                       kilpailu_nimi=kilpailu_nimi, 
-                                       kilpailu_pvm=kilpailu_pvm, 
-                                       joukkue=joukkue,  
-                                       sarjat=sarjat,     
-                                       jasenet=jasenet_list,  
-                                       error_message=error_message)
-            
-            if len(jasenet) < 2:
-                error_message = "Joukkueessa tulee olla vähintään 2 jäsentä"
-                return render_template("joukkuetiedot.html", 
-                                       kilpailu_nimi=kilpailu_nimi, 
-                                       kilpailu_pvm=kilpailu_pvm, 
-                                       joukkue=joukkue,  # Lähetetään nykyiset joukkueen tiedot
-                                       sarjat=sarjat,     # Lähetetään kaikki sarjat
-                                       jasenet=jasenet_list,  # Lähetetään jäsenet
-                                       error_message=error_message)  # Virheilmoitus palautetaan
-            
-            # Tarkistetaan, että kaikki jäsenten nimet ovat uniikkeja (case insensitive)
-            if len(jasenet) != len(set(map(lambda x: x.lower(), jasenet))):
-                error_message = "Jäsenet eivät saa olla saman nimisiä!"
-                return render_template("joukkuetiedot.html", 
-                                       kilpailu_nimi=kilpailu_nimi, 
-                                       kilpailu_pvm=kilpailu_pvm, 
-                                       jasenet=jasenet, 
-                                       error_message=error_message, 
-                                       joukkue=joukkue, 
-                                       sarjat=sarjat)
-            
-            jasenet_json = json.dumps(jasenet)
-
-            try:
-                cur.execute("""
-                    UPDATE joukkueet
-                    SET nimi = ?, salasana = ?, sarja = ?, jasenet = ?
-                    WHERE joukkueid = ?
-                """, (joukkueenNimi, salasana, sarja, jasenet_json, joukkueid))
-                con.commit()
-
-                return redirect(url_for('joukkueet'))
-            except sqlite3.IntegrityError:
-                flash('Joukkueen nimi on jo käytössä.')
-            finally:
-                con.close()
-
-        # Palautetaan tiedot mallipohjaan ilman virheilmoitusta
-        return render_template(
-            "joukkuetiedot.html",
-            kilpailu_nimi=kilpailu_nimi,
-            kilpailu_pvm=kilpailu_pvm,
-            joukkue=joukkue,
-            sarjat=sarjat,
-            jasenet=jasenet_list
-        )
-
-    except sqlite3.Error as e:
-        return Response(f"Tietokanta ei aukene: {str(e)}", status=500)
-    except Exception as e:
-        return Response(f"Tapahtui virhe: {str(e)}", status=500)
-
-    finally:
-        con.close()
 
 @app.route('/logout', methods=['POST'])
 def logout():    
