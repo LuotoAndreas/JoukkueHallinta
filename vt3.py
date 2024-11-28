@@ -129,7 +129,7 @@ def kilpailu(kisaid):
         con.close()
 
 
-@app.route('/sarja/<int:sarjaid>')
+@app.route('/sarja/<int:sarjaid>',  methods=['GET', 'POST'])
 def sarja(sarjaid):
     session['sarjaid'] = sarjaid
     try:
@@ -143,6 +143,17 @@ def sarja(sarjaid):
         # haetaan joukkueet jotka kuuluvat sarjaan
         cur.execute("""SELECT joukkueid, nimi FROM joukkueet WHERE sarja = ?""", (sarjaid,))
         joukkueet = cur.fetchall()
+
+        if request.method == "POST":
+            handleJoukkueLisaaminen()
+            
+
+            # haetaan päivitetyt joukkueet, että nähdään uusi joukkue heti sivulla
+            cur.execute("""SELECT joukkueid, nimi FROM joukkueet WHERE sarja = ?""", (sarjaid,))
+            joukkueet = cur.fetchall()   
+
+
+            #return redirect(url_for('sarja', sarjaid=sarja))   
 
         return render_template("adminSarjanJoukkueet.html", joukkueet=joukkueet, sarjaid=sarjaid, joukkueid=session.get('joukkueid'), kisaid=session.get('kisaid'))
     
@@ -190,30 +201,45 @@ def joukkue(joukkueid):
 
         # POST pyyntö
         if request.method == "POST":
-            # Päivitetään joukkueen tiedot käyttämällä handleJoukkueUpdate funktiota
-            result = handleJoukkueUpdate(request, con, cur, joukkueid, joukkue, sarjat, jasenet)
+            if 'delete_joukkue' in request.form:
+                handleJoukkueenPoistaminen()
 
-            # Tarkistetaan, onko virheilmoitus
-            if result["error_message"]:
+                # palataan sarjan joukkueet -sivulle
+                return redirect(url_for('sarja', sarjaid=session.get('sarjaid')))
+            else:
+                # Päivitetään joukkueen tiedot käyttämällä handleJoukkueUpdate funktiota
+                result = handleJoukkueUpdate(request, con, cur, joukkueid, joukkue, sarjat, jasenet)
+
+                # Tarkistetaan, onko virheilmoitus
+                if result["error_message"]:
+                    return render_template(
+                        "adminJoukkueTiedot.html",
+                        joukkue=joukkue,
+                        sarjat=sarjat,
+                        jasenet=jasenet,
+                        kisaid=kisaid,
+                        sarjaid=session.get('sarjaid'),
+                        joukkueid=joukkueid,
+                        error_message=result["error_message"]
+                    )
+
+                # haetaan päivitetyt tiedot tallennuksen jälkeen
+                cur.execute("""SELECT * FROM joukkueet WHERE joukkueid = ?""", (joukkueid,))
+                joukkue = cur.fetchone()
+                jasenet = json.loads(joukkue['jasenet']) if joukkue['jasenet'] else []
+
+                # Päivitetty onnistuneesti, palataan takaisin joukkueen tietoihin
                 return render_template(
                     "adminJoukkueTiedot.html",
                     joukkue=joukkue,
                     sarjat=sarjat,
                     jasenet=jasenet,
                     kisaid=kisaid,
-                    error_message=result["error_message"]
-                )
-
-            # Päivitetty onnistuneesti, palataan takaisin joukkueen tietoihin
-            return render_template(
-                "adminJoukkueTiedot.html",
-                joukkue=joukkue,
-                sarjat=sarjat,
-                jasenet=jasenet,
-                kisaid=kisaid
-            )       
+                    sarjaid=session.get('sarjaid'),
+                    joukkueid=joukkueid
+                )       
         
-        # Renderöidään näkymä GET pyynnölle
+        # renderöidään näkymä GET pyynnölle
         return render_template(
             "adminJoukkueTiedot.html",
             joukkue=joukkue,
@@ -346,6 +372,69 @@ def handleJoukkueUpdate(request, con, cur, joukkueid, joukkue, sarjat, jasenet_l
         return {"error_message": None}  # No errors
     except sqlite3.IntegrityError:
         return {"error_message": "Joukkueen nimi on jo käytössä."}
+
+# joukkueen lisääminen
+def handleJoukkueLisaaminen():
+    nimi = request.form.get("nimi")
+    salasana = request.form.get("salasana")
+    sarja = session.get('sarjaid')
+    jasenet = [jasen.strip() for jasen in request.form.getlist('jasenet[]') if jasen.strip()]
+
+    # Convert jasenet list to JSON string
+    jasenet_json = json.dumps(jasenet)
+
+    try:
+
+    # yhdistetään tietokantaan
+        con = sqlite3.connect(os.path.abspath('tietokanta.db'))
+        con.row_factory = sqlite3.Row
+        con.execute("PRAGMA foreign_keys = ON")
+
+        cur = con.cursor()       
+
+        # alustetaan joukkueen lisääminen halutuilla tiedoilla
+        cur.execute("""INSERT INTO joukkueet (nimi, salasana, jasenet, sarja) 
+                    VALUES (?, ?, ?, ?)""", (nimi, salasana, jasenet_json, sarja))
+        
+        con.commit()   
+
+    except sqlite3.Error as e:
+        return Response(f"Tietokanta ei aukene: {str(e)}", status=500)
+    except Exception as e:
+        return Response(f"Tapahtui virhe: {str(e)}", status=500)
+
+    finally:
+        con.close()
+
+# joukkueen poistava funktio
+def handleJoukkueenPoistaminen():    
+    joukkueid = session.get('joukkueid')
+    sarjaid = session.get('sarjaid')
+
+    try:        
+    # yhdistetään tietokantaan
+        con = sqlite3.connect(os.path.abspath('tietokanta.db'))
+        con.row_factory = sqlite3.Row
+        con.execute("PRAGMA foreign_keys = ON")
+
+        cur = con.cursor() 
+        # alustetaan joukkueen poisto
+        cur.execute("""DELETE FROM joukkueet WHERE joukkueid = ?""", (joukkueid,))
+        con.commit()      
+
+        # poistetaan poistetun joukkuen id sessiosta
+        session['joukkueid'] = None  
+
+        # palataan sarjan joukkueet -sivulle
+        return redirect(url_for('sarja', sarjaid=sarjaid))
+    
+    except sqlite3.Error as e:
+        return Response(f"Tietokanta ei aukene: {str(e)}", status=500)
+    except Exception as e:
+        return Response(f"Tapahtui virhe: {str(e)}", status=500)
+
+    finally:
+        con.close()
 
 
 @app.route('/kirjaudu',methods=['GET', 'POST'])

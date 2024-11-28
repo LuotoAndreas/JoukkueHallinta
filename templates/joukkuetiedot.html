@@ -46,7 +46,7 @@
                 {% for jasen in jasenet %}
                     <div class="jasen-box">
                         <label for="jasen_{{ loop.index }}">Jäsen {{ loop.index }}</label>
-                        <input type="text" id="jasen_{{ loop.index }}" name="jasenet" value="{{ jasen }}" class="jasen-nimi">
+                        <input type="text" id="jasen_{{ loop.index }}" name="jasenet[]" value="{{ jasen }}" class="jasen-nimi">
                     </div>
                 {% endfor %}
                 
@@ -55,7 +55,7 @@
                     {% for i in range(jasenet|length, 5) %}
                         <div class="jasen-box">
                             <label for="jasen_{{ i + 1 }}">Jäsen {{ i + 1 }}</label>
-                            <input type="text" id="jasen_{{ i + 1 }}" name="jasenet" class="jasen-nimi">
+                            <input type="text" id="jasen_{{ i + 1 }}" name="jasenet[]" class="jasen-nimi">
                         </div>
                     {% endfor %}
                 {% endif %}
