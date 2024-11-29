@@ -55,19 +55,11 @@ def admin():
             error_message = "Syötä tunnus ja salasana"
             return render_template("kirjauduAdmin.html", error_message=error_message)
 
-        # tunnuksen hashaus (en ole varma tarviiko tätä tehdä)
-        u = hashlib.sha512()
-        avain2 = u"jokujokuavain"
-        u.update(avain2.encode("UTF-8"))   
-        u.update(tunnus.encode("UTF-8"))  
-
         # salasanan hashaus
-        m = hashlib.sha512()
         avain = u"jokujokuavain"
-        m.update(avain.encode("UTF-8"))
-        m.update(salasana.encode("UTF-8"))      
+        salasana = hashPassword(avain, salasana)    
         
-        if u.hexdigest() == '96d3cf4d4fe8e5ea39207038ce45a89a37b985c5f85dd4af9d68629c2895caaa947cab7bf9ba570883b14684476ed7d0208f6eaec079d34d1a486b672e472cc9' and m.hexdigest() == '96d3cf4d4fe8e5ea39207038ce45a89a37b985c5f85dd4af9d68629c2895caaa947cab7bf9ba570883b14684476ed7d0208f6eaec079d34d1a486b672e472cc9':
+        if tunnus == "admin" and salasana == '96d3cf4d4fe8e5ea39207038ce45a89a37b985c5f85dd4af9d68629c2895caaa947cab7bf9ba570883b14684476ed7d0208f6eaec079d34d1a486b672e472cc9':
             session['adminKirjautunut'] = "ok"
             return redirect(url_for('adminPaasivu'))
         else:
@@ -326,6 +318,14 @@ def tiedot():
     finally:
         con.close()
 
+# apufunktio salasanan suojaamiseen
+def hashPassword(joukkueid, salasana):
+    m = hashlib.sha512()
+    m.update(str(joukkueid).encode("UTF-8"))
+    m.update(salasana.encode("UTF-8"))
+    return m.hexdigest()
+
+
 # joukkueen tietojen muokkaus ja tallennus 
 def handleJoukkueUpdate(request, con, cur, joukkueid, joukkue, sarjat, jasenet_list):
    
@@ -333,6 +333,10 @@ def handleJoukkueUpdate(request, con, cur, joukkueid, joukkue, sarjat, jasenet_l
     salasana = request.form.get("salasana", "").strip()
     sarja = request.form.get("sarja")
     jasenet = [jasen.strip() for jasen in request.form.getlist('jasenet[]') if jasen.strip()]
+
+    # jos uusi salasana on syötetty lomakkeeseen niin se hashataan     
+    if salasana:       
+        salasana = hashPassword(joukkueid, salasana)
 
     # varmistetaan että joukkueen nimi on syötetty
     if not joukkueenNimi:
@@ -379,10 +383,13 @@ def handleJoukkueLisaaminen():
     salasana = request.form.get("salasana")
     sarja = session.get('sarjaid')
     jasenet = [jasen.strip() for jasen in request.form.getlist('jasenet[]') if jasen.strip()]
+    joukkueid = session.get('joukkueid')
 
     # muutetaan jäsenet jsoniin
     jasenet_json = json.dumps(jasenet)
 
+    # hashataan salasana
+    salasana = hashPassword(joukkueid, salasana)
     try:
 
     # yhdistetään tietokantaan
@@ -496,11 +503,8 @@ def kirjaudu():
             joukkueid = joukkueidJaSalasana['joukkueid']
             hashedSalasana = joukkueidJaSalasana['salasana']
 
-            m = hashlib.sha512()
-            m.update(str(joukkueid).encode("UTF-8"))
-            m.update(salasana.encode("UTF-8"))
-            salasana = m.hexdigest()
-
+            # hashataan salasana ja vertaillaan joukkueid:n mukaan
+            salasana = hashPassword(joukkueid, salasana)
 
             # haetaan sarjat
             sarjat = cur.execute("""
