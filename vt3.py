@@ -193,9 +193,21 @@ def joukkue(joukkueid):
         # POST pyyntö
         if request.method == "POST":
             if 'delete_joukkue' in request.form:
-                handleJoukkueenPoistaminen()
+                result = handleJoukkueenPoistaminen()
 
-                # palataan sarjan joukkueet -sivulle
+                # jos tulee errorviesti, palautetaan sama sivu viestin kanssa
+                if result and result.get("error_message"):
+                        return render_template(
+                            "adminJoukkueTiedot.html", 
+                            joukkue=joukkue,
+                            sarjat=sarjat,
+                            jasenet=jasenet,
+                            kisaid=kisaid,
+                            sarjaid=session.get('sarjaid'),
+                            joukkueid=joukkueid,
+                            error_message=result["error_message"])
+
+                # palataan sarjan joukkueet -sivulle jos ei erroreita
                 return redirect(url_for('sarja', sarjaid=session.get('sarjaid')))
             else:
                 # Päivitetään joukkueen tiedot käyttämällä handleJoukkueUpdate funktiota
@@ -425,6 +437,15 @@ def handleJoukkueenPoistaminen():
         con.execute("PRAGMA foreign_keys = ON")
 
         cur = con.cursor() 
+
+        # haetaan ne rastit, jotka kuuluvat tupaan jotka kuuluvat joukkueeseen
+        cur.execute("""SELECT rastit.* FROM rastit JOIN tupa ON tupa.rasti = rastit.id WHERE tupa.joukkue = ?""", (joukkueid,))
+        rasti = cur.fetchone()
+
+        # jos joukkueella on rasteja, palautetaan vain error viesti eikä suoriteta joukkueen poistoa loppuun
+        if rasti:
+            return {"error_message": "Ei voi poistaa, joukkueella on rastileimauksia"}
+        
         # alustetaan joukkueen poisto
         cur.execute("""DELETE FROM joukkueet WHERE joukkueid = ?""", (joukkueid,))
         con.commit()      
@@ -432,16 +453,16 @@ def handleJoukkueenPoistaminen():
         # poistetaan poistetun joukkuen id sessiosta
         session['joukkueid'] = None  
 
-        # palataan sarjan joukkueet -sivulle
-        return redirect(url_for('sarja', sarjaid=sarjaid))
+        con.commit()        
     
     except sqlite3.Error as e:
-        return Response(f"Tietokanta ei aukene: {str(e)}", status=500)
+        return {"error_message": f"Tietokanta ei aukene: {str(e)}"}
     except Exception as e:
-        return Response(f"Tapahtui virhe: {str(e)}", status=500)
+        return {"error_message": f"Tapahtui virhehöhö: {str(e)}"}
 
     finally:
         con.close()
+            
 
 
 @app.route('/kirjaudu',methods=['GET', 'POST'])
