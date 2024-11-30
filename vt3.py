@@ -61,16 +61,28 @@ def admin():
         
         if tunnus == "admin" and salasana == '96d3cf4d4fe8e5ea39207038ce45a89a37b985c5f85dd4af9d68629c2895caaa947cab7bf9ba570883b14684476ed7d0208f6eaec079d34d1a486b672e472cc9':
             session['adminKirjautunut'] = "ok"
-            return redirect(url_for('adminPaasivu'))
+            return redirect(url_for('kilpailut'))
         else:
             error_message = "väärä tunnus tai salasana"
             return render_template("kirjauduAdmin.html", error_message=error_message)
             
     return render_template("kirjauduAdmin.html")
 
-@app.route('/adminPaasivu',methods=['GET', 'POST'])
+# NÄYTTÄÄ LISTAN KILPAILUISTA
+@app.route('/kilpailut',methods=['GET', 'POST'])
 @admin_auth
-def adminPaasivu(): 
+def kilpailut():     
+
+    # jos käyttäjä painaa kisalinkkiä
+    kisaid = request.args.get('kisaid')
+    if kisaid:
+        # jos käyttäjä valitsee toisen kilpailun, resetoidaan aiemmat sessiot sarjaid ja joukkueid
+        if kisaid != session.get('kisaid'):
+            session['sarjaid'] = None
+            session['joukkueid'] = None
+        session['kisaid'] = kisaid
+        return redirect(url_for('kilpailu', kisaid=kisaid))  # Redirect to the kilpailu page with kisaid set in session
+    
     try:
     # yhdistetään tietokantaan
         con = sqlite3.connect(os.path.abspath('tietokanta.db'))
@@ -81,8 +93,7 @@ def adminPaasivu():
 
         # haetaan kilpailut ja vuosiluvut
         cur. execute("SELECT kisaid, nimi, DATE(alkuaika) AS alkuaika FROM kilpailut ORDER BY alkuaika ASC")
-        kilpailut = cur.fetchall()
-
+        kilpailut = cur.fetchall()       
         
         return render_template("adminKilpailut.html", kilpailut=kilpailut, sarjaid=session.get('sarjaid'), joukkueid=session.get('joukkueid'), kisaid=session.get('kisaid'))
     
@@ -94,12 +105,23 @@ def adminPaasivu():
     finally:
         con.close()
 
-
+# NÄYTTÄÄ LISTAN SARJOISTA
 @app.route('/kilpailu/<int:kisaid>', methods=['GET', 'POST'])
 @admin_auth
-def kilpailu(kisaid):
-    session['kisaid'] = kisaid
-    try:
+def kilpailu(kisaid):      
+
+    # jos yritetään hypätä urlin kautta suoraan kilpailun sarjojen sivulle niin ohjataan pääsivulle
+    if not session.get('kisaid'):
+        return redirect(url_for('kilpailut'))
+    
+    # jos käyttäjä valitsi sarjan
+    sarjaid = request.args.get('sarjaid')
+    if sarjaid:
+        session['sarjaid'] = sarjaid
+        return redirect(url_for('sarja', sarjaid=sarjaid))  # Redirect to the kilpailu page with kisaid set in session
+    
+    try:        
+        
         # yhdistetään tietokantaan
         con = sqlite3.connect(os.path.abspath('tietokanta.db'))
         con.row_factory = sqlite3.Row
@@ -120,13 +142,28 @@ def kilpailu(kisaid):
 
     finally:
         con.close()
+            
 
-
+# NÄYTTÄÄ LISTAN JOUKKUEISTA
 @app.route('/sarja/<int:sarjaid>',  methods=['GET', 'POST'])
 @admin_auth
 def sarja(sarjaid):
-    session['sarjaid'] = sarjaid
+
+    # jos yritetään hypätä urlin kautta suoraan sarjojen joukkueiden sivulle niin ohjataan edelliselle käydylle sivulle
+    if not session.get('sarjaid'):        
+        if session.get('kisaid'):
+            return redirect(url_for('kilpailu', kisaid=session.get('kisaid')))
+        else:
+            return redirect(url_for('kilpailut'))
+
+    # jos käyttäjä painoi joukkuelinkkiä joukkueiden seasta
+    joukkueid = request.args.get('joukkueid')
+    if joukkueid:
+        session['joukkueid'] = joukkueid
+        return redirect(url_for('joukkue', joukkueid=joukkueid)) 
+
     try:
+        
         # yhdistetään tietokantaan
         con = sqlite3.connect(os.path.abspath('tietokanta.db'))
         con.row_factory = sqlite3.Row
@@ -155,10 +192,20 @@ def sarja(sarjaid):
     finally:
         con.close()
 
-
+# NÄYTTÄÄ JOUKKUEEN
 @app.route('/joukkue/<int:joukkueid>', methods=['GET', 'POST'])
 @admin_auth
 def joukkue(joukkueid):
+
+    # jos joukkueid:tä ei ole sessiossa, tarkistetaan onko sarjaid. muuten mennään takaisin pääsivulle
+    if not session.get('joukkueid'):
+        if session.get('sarjaid'):
+            return redirect(url_for('sarja', sarjaid=session.get('sarjaid')))
+        elif session.get('kisaid'):
+            return redirect(url_for('kilpailu', kisaid=session.get('kisaid')))
+        else:
+            return redirect(url_for('kilpailut')) 
+    
     session['joukkueid'] = joukkueid
     try: 
         kisaid = session.get('kisaid')

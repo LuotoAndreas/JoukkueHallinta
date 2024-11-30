@@ -177,7 +177,7 @@ CREATE TABLE joukkueet(
 		ON UPDATE CASCADE
 );
 
-INSERT INTO joukkueet (joukkueid, nimi, salasana, sarja, jasenet) VALUES(114406,'Tollot','2d90c1f0e0209033b000585b2b391df56f06bcb4cfed53998b2a0c953c9405b19ba3579f497393de88f206b2b1345ff0dda088cbee0d4d905a2b129b53bdfbdf',610144,'["Juju", "Tappi"]');
+INSERT INTO joukkueet  (joukkueid, nimi, salasana, sarja, jasenet) VALUES(114406,'Tollot','2d90c1f0e0209033b000585b2b391df56f06bcb4cfed53998b2a0c953c9405b19ba3579f497393de88f206b2b1345ff0dda088cbee0d4d905a2b129b53bdfbdf',610144,'["Juju", "Tappi"]');
 INSERT INTO joukkueet  (joukkueid, nimi, salasana, sarja, jasenet) VALUES(179170,'Kahden joukkue','86d2adaf72a689e31e972b469b9bd2f2c6f2112cadc73b0ae70d8ffd0a6df6b12b5a0968f6940bf8a0eec53fd1b96d8a5c5a2ec0ec1c9d31376eccf974c46d16',610144,'["Matti Humppa", "Miikka Talvinen"]');
 INSERT INTO joukkueet  (joukkueid, nimi, salasana, sarja, jasenet) VALUES(196215,'Siskokset','456baa0ca41db85f47516b22b464fac0e7500c8f21532bef24c6b114b80f95bfad3e9c4352d0803abf92c077722094927a4104b64de02be4ac1964d154185f8a',610144,'["Sanna Haavikko", "Seija Kallio"]');
 INSERT INTO joukkueet  (joukkueid, nimi, salasana, sarja, jasenet) VALUES(198904,'Kaakelin putsaajat','95f1aa96feaf1025cc0cb763bd51412068fb9ed36482c52ddb7539c1d3c6a4a0fee4e32e5f189e9ac560d90ed5965fe716c5d02a2651a56d26824e9a27746b17',610144,'["Jaana Kaajanen", "Mikko Kaajanen", "Timo Ruonanen"]');

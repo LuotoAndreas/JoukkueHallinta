@@ -9,7 +9,7 @@
 <body>  
   <div class="ylapalkki">    
     <label>ADMIN</label> |
-    <a href="{{ url_for('adminPaasivu') }}">Kilpailut</a> |
+    <a href="{{ url_for('kilpailut') }}">Kilpailut</a> |
     {% if kisaid %}
         <a href="{{ url_for('kilpailu', kisaid=kisaid) }}">Sarjat</a> |
     {% else %}
@@ -32,16 +32,16 @@
     </form>
   </div>
   <h1>Kilpailun sarjat</h1>
-    <div class="sarjat">
-        <ul class="sarjat">
-            {% for sarja in sarjat %}
-            <li value="{{ sarjat['sarjaid'] }}">
-                <a href="/sarja/{{ sarja['sarjaid'] }}">{{ sarja['nimi'] }}</a>
-            </li>
-            {% endfor %}
-        </ul>
-    </div>
-  <form action="{{ url_for('logout') }}" method="POST" style="display:inline;">
-    <button type="submit">Logout</button>
-  </form>
+  <div class="sarjat">
+      <ul class="sarjat">
+          {% for sarja in sarjat %}
+              <li value="{{ sarja['sarjaid'] }} ">
+                <a href="{{ url_for('kilpailu', kisaid=kisaid, sarjaid=sarja['sarjaid']) }}">
+                    {{ sarja['nimi'] }}
+                </a>
+                
+              </li>
+          {% endfor %}
+      </ul>
+  </div>
 </body>

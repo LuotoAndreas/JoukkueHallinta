@@ -35,26 +35,26 @@ button {
 
 .joukkuenimi {
     display: flex;
-    align-items: baseline; /* Align the label and input on the same baseline */
-    gap: 20px; /* Adjust the gap between label and input as needed */
+    align-items: baseline; 
+    gap: 20px; 
 }
 
 label {
     font-weight: bold;
-    margin: 0; /* Remove any margin around the label */
+    margin: 0; 
 }
 
 input[type="text"] {
-    padding: 3px; /* Add padding inside the input box */
+    padding: 3px; 
 }
 
 .joukkuesalasana {
     display: flex;
-    align-items: baseline; /* Align the label and input on the same baseline */
-    gap: 70px; /* Adjust the gap between label and input as needed */
+    align-items: baseline; 
+    gap: 70px; 
 }
 
 .joukkuesalasana input[type="password"] {
-    padding: 3px; /* Add padding inside the input box */
+    padding: 3px;
 }
 
