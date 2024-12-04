@@ -81,15 +81,12 @@ def kilpailut():
             session['sarjaid'] = None
             session['joukkueid'] = None
         session['kisaid'] = kisaid
-        return redirect(url_for('kilpailu', kisaid=kisaid))  # Redirect to the kilpailu page with kisaid set in session
+        return redirect(url_for('kilpailu', kisaid=kisaid)) 
     
     try:
-    # yhdistetään tietokantaan
-        con = sqlite3.connect(os.path.abspath('tietokanta.db'))
-        con.row_factory = sqlite3.Row
-        con.execute("PRAGMA foreign_keys = ON")
-
-        cur = con.cursor()
+        # luodaan yhteys tietokantaan
+        yhdistaTietokantaan = yhdista_tietokantaan()
+        con, cur = yhdistaTietokantaan
 
         # haetaan kilpailut ja vuosiluvut
         cur. execute("SELECT kisaid, nimi, DATE(alkuaika) AS alkuaika FROM kilpailut ORDER BY alkuaika ASC")
@@ -118,20 +115,18 @@ def kilpailu(kisaid):
     sarjaid = request.args.get('sarjaid')
     if sarjaid:
         session['sarjaid'] = sarjaid
-        return redirect(url_for('sarja', sarjaid=sarjaid))  # Redirect to the kilpailu page with kisaid set in session
+        return redirect(url_for('sarja', sarjaid=sarjaid))     
+
     
     try:        
-        
-        # yhdistetään tietokantaan
-        con = sqlite3.connect(os.path.abspath('tietokanta.db'))
-        con.row_factory = sqlite3.Row
-        con.execute("PRAGMA foreign_keys = ON")
-
-        cur = con.cursor()
+        # luodaan yhteys tietokantaan
+        yhdistaTietokantaan = yhdista_tietokantaan()
+        con, cur = yhdistaTietokantaan
 
         # haetaan sarjat jotka kuuluvat kilpailuun
         cur.execute("""SELECT sarjaid, nimi FROM sarjat WHERE kilpailu = ?""", (kisaid,))
         sarjat = cur.fetchall()
+
 
         return render_template("adminSarjat.html", sarjat=sarjat, sarjaid=session.get('sarjaid'), joukkueid=session.get('joukkueid'), kisaid=kisaid)
         
@@ -164,12 +159,9 @@ def sarja(sarjaid):
 
     try:
         
-        # yhdistetään tietokantaan
-        con = sqlite3.connect(os.path.abspath('tietokanta.db'))
-        con.row_factory = sqlite3.Row
-        con.execute("PRAGMA foreign_keys = ON")
-
-        cur = con.cursor()
+        # luodaan yhteys tietokantaan
+        yhdistaTietokantaan = yhdista_tietokantaan()
+        con, cur = yhdistaTietokantaan
 
         # haetaan joukkueet jotka kuuluvat sarjaan
         cur.execute("""SELECT joukkueid, nimi FROM joukkueet WHERE sarja = ?""", (sarjaid,))
@@ -210,12 +202,9 @@ def joukkue(joukkueid):
     try: 
         kisaid = session.get('kisaid')
 
-        # yhdistetään tietokantaan
-        con = sqlite3.connect(os.path.abspath('tietokanta.db'))
-        con.row_factory = sqlite3.Row
-        con.execute("PRAGMA foreign_keys = ON")
-
-        cur = con.cursor()       
+        # luodaan yhteys tietokantaan
+        yhdistaTietokantaan = yhdista_tietokantaan()
+        con, cur = yhdistaTietokantaan      
 
         # haetaan joukkueet jotka kuuluvat sarjaan
         cur.execute("""SELECT * FROM joukkueet WHERE joukkueid = ?""", (joukkueid,))
@@ -308,6 +297,20 @@ def joukkue(joukkueid):
     finally:
         con.close()
 
+def yhdista_tietokantaan():
+    try: 
+        # yhdistetään tietokantaan
+        con = sqlite3.connect(os.path.abspath('tietokanta.db'))
+        con.row_factory = sqlite3.Row
+        con.execute("PRAGMA foreign_keys = ON")
+
+        cur = con.cursor()
+        return con, cur
+
+    except sqlite3.Error as e:
+        return Response(f"Tietokanta ei aukene: {str(e)}", status=500)
+    except Exception as e:
+        return Response(f"Tapahtui virhe: {str(e)}", status=500)
 
 
 @app.route('/tiedot', methods=['GET', 'POST'])
@@ -320,12 +323,9 @@ def tiedot():
         kilpailu_pvm = session.get('kilpailu_pvm')
         kilpailuid = session.get('valittuKilpailuId')
 
-        # Yhdistä tietokantaan
-        con = sqlite3.connect(os.path.abspath('tietokanta.db'))
-        con.row_factory = sqlite3.Row  # Mahdollistaa sanakirjatulokset
-        con.execute("PRAGMA foreign_keys = ON")
-
-        cur = con.cursor()
+        # luodaan yhteys tietokantaan
+        yhdistaTietokantaan = yhdista_tietokantaan()
+        con, cur = yhdistaTietokantaan
 
         # Haetaan joukkueen tiedot
         joukkue = cur.execute("""
@@ -451,12 +451,9 @@ def handleJoukkueLisaaminen():
     salasana = hashPassword(joukkueid, salasana)
     try:
 
-    # yhdistetään tietokantaan
-        con = sqlite3.connect(os.path.abspath('tietokanta.db'))
-        con.row_factory = sqlite3.Row
-        con.execute("PRAGMA foreign_keys = ON")
-
-        cur = con.cursor()       
+        # luodaan yhteys tietokantaan
+        yhdistaTietokantaan = yhdista_tietokantaan()
+        con, cur = yhdistaTietokantaan    
 
         # alustetaan joukkueen lisääminen halutuilla tiedoilla
         cur.execute("""INSERT INTO joukkueet (nimi, salasana, jasenet, sarja) 
@@ -475,15 +472,12 @@ def handleJoukkueLisaaminen():
 # joukkueen poistava funktio
 def handleJoukkueenPoistaminen():    
     joukkueid = session.get('joukkueid')
-    sarjaid = session.get('sarjaid')
 
     try:        
-    # yhdistetään tietokantaan
-        con = sqlite3.connect(os.path.abspath('tietokanta.db'))
-        con.row_factory = sqlite3.Row
-        con.execute("PRAGMA foreign_keys = ON")
 
-        cur = con.cursor() 
+        # luodaan yhteys tietokantaan
+        yhdistaTietokantaan = yhdista_tietokantaan()
+        con, cur = yhdistaTietokantaan
 
         # haetaan ne rastit, jotka kuuluvat tupaan jotka kuuluvat joukkueeseen
         cur.execute("""SELECT rastit.* FROM rastit JOIN tupa ON tupa.rasti = rastit.id WHERE tupa.joukkue = ?""", (joukkueid,))
@@ -517,12 +511,9 @@ def kirjaudu():
 
     try:
         
-        # yhdistetään tietokantaan
-        con = sqlite3.connect(os.path.abspath('tietokanta.db'))
-        con.row_factory = sqlite3.Row
-        con.execute("PRAGMA foreign_keys = ON")
-
-        cur = con.cursor()
+        # luodaan yhteys tietokantaan
+        yhdistaTietokantaan = yhdista_tietokantaan()
+        con, cur = yhdistaTietokantaan
 
         # haetaan kilpailut ja vuosiluvut
         cur.execute("SELECT kisaid, nimi, alkuaika FROM kilpailut")
@@ -659,12 +650,9 @@ def joukkueet():
         kisaId = session.get('valittuKilpailuId')  
         käyttäjä = session.get('käyttäjä')      
 
-        # Yhdistä tietokantaan
-        con = sqlite3.connect(os.path.abspath('tietokanta.db'))
-        con.row_factory = sqlite3.Row  # Mahdollistaa tulosten käsittelyn dict-tyyppisinä
-        con.execute("PRAGMA foreign_keys = ON")  # Ota foreign keys käyttöön
-
-        cur = con.cursor()
+        # luodaan yhteys tietokantaan
+        yhdistaTietokantaan = yhdista_tietokantaan()
+        con, cur = yhdistaTietokantaan
 
         # haetaan kilpailuun liittyvät sarjat aakkosjärjestyksessä
         cur.execute('SELECT * FROM sarjat WHERE kilpailu = ? ORDER BY LOWER(nimi)', (kisaId,))
@@ -709,5 +697,3 @@ def joukkueet():
    
 if __name__ == '__main__':
     app.run(debug=True)
-
-

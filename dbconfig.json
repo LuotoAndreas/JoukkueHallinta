@@ -1,0 +1,6 @@
+{
+    "database": "tunnus$reseptit",
+    "user": "tunnus",
+    "passwd": "salasana",
+    "host": "tunnus.mysql.eu.pythonanywhere-services.com"
+  }
