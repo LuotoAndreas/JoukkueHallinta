@@ -1,6 +1,6 @@
 {
-    "database": "tunnus$reseptit",
-    "user": "tunnus",
-    "passwd": "salasana",
-    "host": "tunnus.mysql.eu.pythonanywhere-services.com"
-  }
+    "database": "my_flask_app",
+    "user": "root",
+    "passwd": "root",
+    "host": "127.0.0.1"
+}

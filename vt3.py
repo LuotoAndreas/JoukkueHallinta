@@ -7,6 +7,11 @@ from functools import wraps
 import json
 import urllib
 import hashlib
+import mysql.connector
+import mysql.connector.pooling
+import mysql.connector.errors
+from mysql.connector import pooling
+from mysql.connector import errorcode
 
 app = Flask(__name__)
 
@@ -15,6 +20,28 @@ app.config.update(
     SESSION_COOKIE_SAMESITE='Lax'
 )
 app.secret_key = b'U\xfc\x92"DGw\xff\xcfG\x06\x90\xe7\x9d\x9d\xc7~\xee\xe3\xf1\xc2\xb8\xcb\xa5'
+
+tiedosto = open("dbconfig.json", encoding="UTF-8")
+dbconfig = json.load(tiedosto)
+
+# luodaan mysql pooling
+try:
+    pool=mysql.connector.pooling.MySQLConnectionPool(pool_name="tietokantayhteydet",
+    pool_size=2, #PythonAnywheren ilmaisen tunnuksen maksimi on kolme
+    autocommit=True, #asettaa autocommitin päälle. 
+    charset='utf8mb4',
+    **dbconfig
+    ) 
+
+    print("Connection pool created successfully.")
+
+except mysql.connector.Error as err:
+  if err.errno == errorcode.ER_ACCESS_DENIED_ERROR:
+    print("Tunnus tai salasana on väärin")
+  elif err.errno == errorcode.ER_BAD_DB_ERROR:
+    print("Tietokantaa ei löydy")
+  else:
+    print(err)
 
 def admin_auth(f):
     ''' TÃ¤mÃ¤ decorator hoitaa kirjautumisen tarkistamisen ja ohjaa tarvittaessa kirjautumissivulle
@@ -84,23 +111,26 @@ def kilpailut():
         return redirect(url_for('kilpailu', kisaid=kisaid)) 
     
     try:
-        # luodaan yhteys tietokantaan
-        yhdistaTietokantaan = yhdista_tietokantaan()
-        con, cur = yhdistaTietokantaan
+        con = pool.get_connection()
+        cur = con.cursor(dictionary = True)
 
         # haetaan kilpailut ja vuosiluvut
         cur. execute("SELECT kisaid, nimi, DATE(alkuaika) AS alkuaika FROM kilpailut ORDER BY alkuaika ASC")
-        kilpailut = cur.fetchall()       
+        kilpailut = cur.fetchall()    
+
+        print(f'kilapailut {kilpailut}')   
         
         return render_template("adminKilpailut.html", kilpailut=kilpailut, sarjaid=session.get('sarjaid'), joukkueid=session.get('joukkueid'), kisaid=session.get('kisaid'))
     
-    except sqlite3.Error as e:
+    except mysql.connector.Error as e:
         return Response(f"Tietokanta ei aukene: {str(e)}", status=500)
     except Exception as e:
         return Response(f"Tapahtui virhe: {str(e)}", status=500)
 
     finally:
-        con.close()
+        if con.is_connected():
+            cur.close()
+            con.close()
 
 # NÄYTTÄÄ LISTAN SARJOISTA
 @app.route('/kilpailu/<int:kisaid>', methods=['GET', 'POST'])
@@ -116,27 +146,27 @@ def kilpailu(kisaid):
     if sarjaid:
         session['sarjaid'] = sarjaid
         return redirect(url_for('sarja', sarjaid=sarjaid))     
-
     
     try:        
-        # luodaan yhteys tietokantaan
-        yhdistaTietokantaan = yhdista_tietokantaan()
-        con, cur = yhdistaTietokantaan
+        con = pool.get_connection()
+        cur = con.cursor(dictionary = True)
 
         # haetaan sarjat jotka kuuluvat kilpailuun
-        cur.execute("""SELECT sarjaid, nimi FROM sarjat WHERE kilpailu = ?""", (kisaid,))
+        cur.execute("""SELECT sarjaid, nimi FROM sarjat WHERE kilpailu = %s""", (kisaid,))
         sarjat = cur.fetchall()
-
 
         return render_template("adminSarjat.html", sarjat=sarjat, sarjaid=session.get('sarjaid'), joukkueid=session.get('joukkueid'), kisaid=kisaid)
         
-    except sqlite3.Error as e:
+    except mysql.connector.Error as e:
         return Response(f"Tietokanta ei aukene: {str(e)}", status=500)
     except Exception as e:
         return Response(f"Tapahtui virhe: {str(e)}", status=500)
 
     finally:
-        con.close()
+        if con.is_connected():
+            cur.close()
+            con.close()
+
             
 
 # NÄYTTÄÄ LISTAN JOUKKUEISTA
@@ -158,31 +188,32 @@ def sarja(sarjaid):
         return redirect(url_for('joukkue', joukkueid=joukkueid)) 
 
     try:
-        
-        # luodaan yhteys tietokantaan
-        yhdistaTietokantaan = yhdista_tietokantaan()
-        con, cur = yhdistaTietokantaan
+        con = pool.get_connection()
+        cur = con.cursor(dictionary = True)
 
         # haetaan joukkueet jotka kuuluvat sarjaan
-        cur.execute("""SELECT joukkueid, nimi FROM joukkueet WHERE sarja = ?""", (sarjaid,))
+        cur.execute("""SELECT joukkueid, nimi FROM joukkueet WHERE sarja = %s""", (sarjaid,))
         joukkueet = cur.fetchall()
 
         if request.method == "POST":
-            handleJoukkueLisaaminen()
+            handleJoukkueLisaaminen(con, cur)
 
             # haetaan päivitetyt joukkueet, että nähdään uusi joukkue heti sivulla
-            cur.execute("""SELECT joukkueid, nimi FROM joukkueet WHERE sarja = ?""", (sarjaid,))
+            cur.execute("""SELECT joukkueid, nimi FROM joukkueet WHERE sarja = %s""", (sarjaid,))
             joukkueet = cur.fetchall()   
   
         return render_template("adminSarjanJoukkueet.html", joukkueet=joukkueet, sarjaid=sarjaid, joukkueid=session.get('joukkueid'), kisaid=session.get('kisaid'))
     
-    except sqlite3.Error as e:
+    except mysql.connector.Error as e:
         return Response(f"Tietokanta ei aukene: {str(e)}", status=500)
     except Exception as e:
         return Response(f"Tapahtui virhe: {str(e)}", status=500)
 
     finally:
-        con.close()
+        if con.is_connected():
+            cur.close()
+            con.close()
+
 
 # NÄYTTÄÄ JOUKKUEEN
 @app.route('/joukkue/<int:joukkueid>', methods=['GET', 'POST'])
@@ -202,12 +233,11 @@ def joukkue(joukkueid):
     try: 
         kisaid = session.get('kisaid')
 
-        # luodaan yhteys tietokantaan
-        yhdistaTietokantaan = yhdista_tietokantaan()
-        con, cur = yhdistaTietokantaan      
+        con = pool.get_connection()
+        cur = con.cursor(dictionary = True)
 
-        # haetaan joukkueet jotka kuuluvat sarjaan
-        cur.execute("""SELECT * FROM joukkueet WHERE joukkueid = ?""", (joukkueid,))
+        # haetaan joukkue joilla tietty joukkueid
+        cur.execute("""SELECT * FROM joukkueet WHERE joukkueid = %s""", (joukkueid,))
         joukkue = cur.fetchone()
 
         if joukkue:
@@ -219,17 +249,17 @@ def joukkue(joukkueid):
         sarja_id = joukkue['sarja']
 
         # Haetaan kilpailu johon tämä sarja kuuluu
-        cur.execute("""SELECT kilpailu FROM sarjat WHERE sarjaid = ?""", (sarja_id,))
+        cur.execute("""SELECT kilpailu FROM sarjat WHERE sarjaid = %s""", (sarja_id,))
         kilpailu_id = cur.fetchone()['kilpailu']
 
         # Haetaan kaikki sarjat jotka kuuluvat tähän kilpailuun
-        cur.execute("""SELECT * FROM sarjat WHERE kilpailu = ?""", (kilpailu_id,))
-        sarjat = cur.fetchall()                   
+        cur.execute("""SELECT * FROM sarjat WHERE kilpailu = %s""", (kilpailu_id,))
+        sarjat = cur.fetchall()                 
 
         # POST pyyntö
         if request.method == "POST":
             if 'delete_joukkue' in request.form:
-                result = handleJoukkueenPoistaminen()
+                result = handleJoukkueenPoistaminen(con, cur)
 
                 # jos tulee errorviesti, palautetaan sama sivu viestin kanssa
                 if result and result.get("error_message"):
@@ -263,7 +293,7 @@ def joukkue(joukkueid):
                     )
 
                 # haetaan päivitetyt tiedot tallennuksen jälkeen
-                cur.execute("""SELECT * FROM joukkueet WHERE joukkueid = ?""", (joukkueid,))
+                cur.execute("""SELECT * FROM joukkueet WHERE joukkueid = %s""", (joukkueid,))
                 joukkue = cur.fetchone()
                 jasenet = json.loads(joukkue['jasenet']) if joukkue['jasenet'] else []
 
@@ -289,28 +319,41 @@ def joukkue(joukkueid):
             joukkueid=joukkueid
         )
 
-    except sqlite3.Error as e:
+    except mysql.connector.Error as e:
         return Response(f"Tietokanta ei aukene: {str(e)}", status=500)
     except Exception as e:
         return Response(f"Tapahtui virhe: {str(e)}", status=500)
 
     finally:
-        con.close()
+        if con.is_connected():
+            cur.close()
+            con.close()
 
-def yhdista_tietokantaan():
-    try: 
+
+# apufunktio joka muuttaa rivit dicteiksi niiden nimillä (tämän takia ei tarvitse muuttaa html tiedostoja kun vaihdettiin mysql.)
+#def fetch_all_as_dict(cursor):
+    #columns = [column[0] for column in cursor.description] 
+    #rows = cursor.fetchall()
+    
+    #result = []
+    #for row in rows:
+        #result.append(dict(zip(columns, row))) 
+    #return result
+
+#def yhdista_tietokantaan():
+    #try: 
         # yhdistetään tietokantaan
-        con = sqlite3.connect(os.path.abspath('tietokanta.db'))
-        con.row_factory = sqlite3.Row
-        con.execute("PRAGMA foreign_keys = ON")
+        #con = sqlite3.connect(os.path.abspath('tietokanta.db'))
+        #con.row_factory = sqlite3.Row
+        #con.execute("PRAGMA foreign_keys = ON")
 
-        cur = con.cursor()
-        return con, cur
+        #cur = con.cursor()
+        #return con, cur
 
-    except sqlite3.Error as e:
-        return Response(f"Tietokanta ei aukene: {str(e)}", status=500)
-    except Exception as e:
-        return Response(f"Tapahtui virhe: {str(e)}", status=500)
+    #except sqlite3.Error as e:
+        #return Response(f"Tietokanta ei aukene: {str(e)}", status=500)
+    #except Exception as e:
+        #return Response(f"Tapahtui virhe: {str(e)}", status=500)
 
 
 @app.route('/tiedot', methods=['GET', 'POST'])
@@ -323,22 +366,21 @@ def tiedot():
         kilpailu_pvm = session.get('kilpailu_pvm')
         kilpailuid = session.get('valittuKilpailuId')
 
-        # luodaan yhteys tietokantaan
-        yhdistaTietokantaan = yhdista_tietokantaan()
-        con, cur = yhdistaTietokantaan
+        con = pool.get_connection()
+        cur = con.cursor(dictionary = True)
 
         # Haetaan joukkueen tiedot
         joukkue = cur.execute("""
             SELECT nimi, salasana, sarja, jasenet
             FROM joukkueet
-            WHERE joukkueid = ?
+            WHERE joukkueid = %s
         """, (joukkueid,)).fetchone()
 
         # Muunnetaan jäsenet listaksi
         jasenet_list = json.loads(joukkue['jasenet']) if joukkue['jasenet'] else []
 
         # Haetaan sarjat kilpailusta
-        cur.execute('SELECT * FROM sarjat WHERE kilpailu = ?', (kilpailuid,))
+        cur.execute('SELECT * FROM sarjat WHERE kilpailu = %s', (kilpailuid,))
         sarjat = cur.fetchall()
 
         # Handle POST requests
@@ -369,13 +411,16 @@ def tiedot():
             jasenet=jasenet_list,
         )
 
-    except sqlite3.Error as e:
+    except mysql.connector.Error as e:
         return Response(f"Tietokanta ei aukene: {str(e)}", status=500)
     except Exception as e:
         return Response(f"Tapahtui virhe: {str(e)}", status=500)
 
     finally:
-        con.close()
+        if con.is_connected():
+            cur.close()
+            con.close()
+
 
 # apufunktio salasanan suojaamiseen
 def hashPassword(joukkueid, salasana):
@@ -413,7 +458,7 @@ def handleJoukkueUpdate(request, con, cur, joukkueid, joukkue, sarjat, jasenet_l
     cur.execute("""
         SELECT COUNT(*) 
         FROM joukkueet 
-        WHERE LOWER(nimi) = LOWER(?) AND sarja = ? AND joukkueid != ?
+        WHERE LOWER(nimi) = LOWER(%s) AND sarja = %s AND joukkueid != %s
     """, (joukkueenNimi, sarja, joukkueid))
 
     if cur.fetchone()[0] > 0:
@@ -426,8 +471,8 @@ def handleJoukkueUpdate(request, con, cur, joukkueid, joukkue, sarjat, jasenet_l
         cur.execute(
             """
             UPDATE joukkueet
-            SET nimi = ?, salasana = ?, sarja = ?, jasenet = ?
-            WHERE joukkueid = ?
+            SET nimi = %s, salasana = %s, sarja = %s, jasenet = %s
+            WHERE joukkueid = %s
             """,
             (joukkueenNimi, salasana, sarja, jasenet_json, joukkueid),
         )
@@ -435,9 +480,10 @@ def handleJoukkueUpdate(request, con, cur, joukkueid, joukkue, sarjat, jasenet_l
         return {"error_message": None}  # No errors
     except sqlite3.IntegrityError:
         return {"error_message": "Joukkueen nimi on jo käytössä."}
+    
 
 # joukkueen lisääminen
-def handleJoukkueLisaaminen():
+def handleJoukkueLisaaminen(con, cur):
     nimi = request.form.get("nimi")
     salasana = request.form.get("salasana")
     sarja = session.get('sarjaid')
@@ -448,39 +494,30 @@ def handleJoukkueLisaaminen():
     jasenet_json = json.dumps(jasenet)
 
     # hashataan salasana
-    salasana = hashPassword(joukkueid, salasana)
+    hashedSalasana = hashPassword(joukkueid, salasana)
     try:
-
-        # luodaan yhteys tietokantaan
-        yhdistaTietokantaan = yhdista_tietokantaan()
-        con, cur = yhdistaTietokantaan    
 
         # alustetaan joukkueen lisääminen halutuilla tiedoilla
         cur.execute("""INSERT INTO joukkueet (nimi, salasana, jasenet, sarja) 
-                    VALUES (?, ?, ?, ?)""", (nimi, salasana, jasenet_json, sarja))
+                    VALUES (%s, %s, %s, %s)""", (nimi, hashedSalasana, jasenet_json, sarja))
         
         con.commit()   
 
-    except sqlite3.Error as e:
-        return Response(f"Tietokanta ei aukene: {str(e)}", status=500)
+    except mysql.connector.Error as e:
+        return Response(f"Tietokantavirhe: {str(e)}", status=500)
     except Exception as e:
         return Response(f"Tapahtui virhe: {str(e)}", status=500)
 
-    finally:
-        con.close()
+
 
 # joukkueen poistava funktio
-def handleJoukkueenPoistaminen():    
+def handleJoukkueenPoistaminen(con, cur):    
     joukkueid = session.get('joukkueid')
 
     try:        
 
-        # luodaan yhteys tietokantaan
-        yhdistaTietokantaan = yhdista_tietokantaan()
-        con, cur = yhdistaTietokantaan
-
         # haetaan ne rastit, jotka kuuluvat tupaan jotka kuuluvat joukkueeseen
-        cur.execute("""SELECT rastit.* FROM rastit JOIN tupa ON tupa.rasti = rastit.id WHERE tupa.joukkue = ?""", (joukkueid,))
+        cur.execute("""SELECT rastit.* FROM rastit JOIN tupa ON tupa.rasti = rastit.id WHERE tupa.joukkue = %s""", (joukkueid,))
         rasti = cur.fetchone()
 
         # jos joukkueella on rasteja, palautetaan vain error viesti eikä suoriteta joukkueen poistoa loppuun
@@ -488,7 +525,7 @@ def handleJoukkueenPoistaminen():
             return {"error_message": "Ei voi poistaa, joukkueella on rastileimauksia"}
         
         # alustetaan joukkueen poisto
-        cur.execute("""DELETE FROM joukkueet WHERE joukkueid = ?""", (joukkueid,))
+        cur.execute("""DELETE FROM joukkueet WHERE joukkueid = %s""", (joukkueid,))
         con.commit()      
 
         # poistetaan poistetun joukkuen id sessiosta
@@ -496,13 +533,11 @@ def handleJoukkueenPoistaminen():
 
         con.commit()        
     
-    except sqlite3.Error as e:
-        return {"error_message": f"Tietokanta ei aukene: {str(e)}"}
+    except mysql.connector.Error as e:
+        return Response(f"Tietokantavirhe: {str(e)}", status=500)
     except Exception as e:
-        return {"error_message": f"Tapahtui virhehöhö: {str(e)}"}
+        return Response(f"Tapahtui virhe: {str(e)}", status=500)
 
-    finally:
-        con.close()
             
 
 
@@ -512,8 +547,8 @@ def kirjaudu():
     try:
         
         # luodaan yhteys tietokantaan
-        yhdistaTietokantaan = yhdista_tietokantaan()
-        con, cur = yhdistaTietokantaan
+        con = pool.get_connection()
+        cur = con.cursor(dictionary = True)
 
         # haetaan kilpailut ja vuosiluvut
         cur.execute("SELECT kisaid, nimi, alkuaika FROM kilpailut")
@@ -551,7 +586,7 @@ def kirjaudu():
                 return render_template("kirjaudu.html", kilpailut=kilpailutjaVuosi, error_message=error_message)
             
             # haetaan joukkueenId ja salattu salasana tunnuksen mukaan
-            cur. execute("""SELECT joukkueid, salasana FROM joukkueet WHERE nimi = ?""", (tunnus,))
+            cur. execute("""SELECT joukkueid, salasana FROM joukkueet WHERE nimi = %s""", (tunnus,))
             joukkueidJaSalasana = cur.fetchone()
 
             # jos käyttäjätunnus on väärin
@@ -567,7 +602,7 @@ def kirjaudu():
 
             # haetaan sarjat
             sarjat = cur.execute("""
-                SELECT sarjaid FROM sarjat WHERE kilpailu = ?
+                SELECT sarjaid FROM sarjat WHERE kilpailu = %s
             """, (valittuKilpailuId,)).fetchall()
 
             # tarkistetaan onko joukkuenimi olemassa sarjassa joka on valitussa kilpailussa
@@ -578,7 +613,7 @@ def kirjaudu():
                 # haetaan joukkue 
                 joukkue = cur.execute("""
                     SELECT nimi FROM joukkueet
-                    WHERE sarja = ? AND nimi = ?
+                    WHERE sarja = %s AND nimi = %s
                 """, (sarja_id, tunnus)).fetchone()
 
                 if joukkue:
@@ -592,7 +627,7 @@ def kirjaudu():
 
                 joukkue = cur.execute("""
                     SELECT joukkueid, nimi FROM joukkueet
-                    WHERE sarja = ? AND nimi = ?
+                    WHERE sarja = %s AND nimi = %s
                     """, (sarja_id, tunnus)).fetchone()
                 
                 if joukkue:
@@ -600,7 +635,7 @@ def kirjaudu():
                     session['käyttäjä'] = joukkue['nimi'] 
 
                 # haetaan kilpailun nimi ja päivämäärä tietokannasta
-                kilpailu = cur.execute("SELECT nimi, alkuaika, kisaid FROM kilpailut WHERE kisaid = ?", (valittuKilpailuId,)).fetchone()
+                kilpailu = cur.execute("SELECT nimi, alkuaika, kisaid FROM kilpailut WHERE kisaid = %s", (valittuKilpailuId,)).fetchone()
                 if kilpailu:
                     session['kilpailu_nimi'] = kilpailu['nimi']
                     session['kilpailu_pvm'] = kilpailu['alkuaika']
@@ -615,12 +650,16 @@ def kirjaudu():
         # GET pyynnössä renderöidään kirjaudu sivu
         return render_template("kirjaudu.html", kilpailut=kilpailutjaVuosi)
     
-    except sqlite3.Error as e:
+    except mysql.connector.Error as e:
         return Response(f"Tietokanta ei aukene: {str(e)}", status=500)
-    except UnicodeDecodeError as e:
-        return Response(f"Merkkikoodauksen virhe: {str(e)}", status=500)
+    except Exception as e:
+        return Response(f"Tapahtui virhe: {str(e)}", status=500)
+
     finally:
-        con.close()
+        if con.is_connected():
+            cur.close()
+            con.close()
+
 
 
 @app.route('/logout', methods=['POST'])
@@ -651,11 +690,11 @@ def joukkueet():
         käyttäjä = session.get('käyttäjä')      
 
         # luodaan yhteys tietokantaan
-        yhdistaTietokantaan = yhdista_tietokantaan()
-        con, cur = yhdistaTietokantaan
+        con = pool.get_connection()
+        cur = con.cursor(dictionary = True)
 
         # haetaan kilpailuun liittyvät sarjat aakkosjärjestyksessä
-        cur.execute('SELECT * FROM sarjat WHERE kilpailu = ? ORDER BY LOWER(nimi)', (kisaId,))
+        cur.execute('SELECT * FROM sarjat WHERE kilpailu = %s ORDER BY LOWER(nimi)', (kisaId,))
         sarjat = cur.fetchall()  # Haetaan sarjat kilpailusta       
 
         # haetaan kaikki joukkueet aakkosjärjestyksessä 
@@ -670,7 +709,7 @@ def joukkueet():
 
         jasenet = {}
         for joukkue in joukkueet:
-            cur.execute('SELECT jasenet FROM joukkueet WHERE joukkueid = ?', (joukkue['joukkueid'],))
+            cur.execute('SELECT jasenet FROM joukkueet WHERE joukkueid = %s', (joukkue['joukkueid'],))
             jasenetData = cur.fetchone()
             if jasenetData:
                 jasenet[joukkue['joukkueid']] = json.loads(jasenetData['jasenet'])        
@@ -685,15 +724,16 @@ def joukkueet():
         
         return render_template('joukkueet.html', sarjat=sarjat, joukkueet=joukkueet, jasenet=jasenet, kilpailu=kilpailu, käyttäjä=käyttäjä)
 
-    except sqlite3.Error as e:
-        # Virhe tietokannan kanssa
+    except mysql.connector.Error as e:
         return Response(f"Tietokanta ei aukene: {str(e)}", status=500)
-    except UnicodeDecodeError as e:
-        # Virhe merkkikoodauksessa
-        return Response(f"Merkkikoodauksen virhe: {str(e)}", status=500)
+    except Exception as e:
+        return Response(f"Tapahtui virhe: {str(e)}", status=500)
+
     finally:
-        # Varmista, että yhteys suljetaan aina
-        con.close()
+        if con.is_connected():
+            cur.close()
+            con.close()
+
    
 if __name__ == '__main__':
     app.run(debug=True)
