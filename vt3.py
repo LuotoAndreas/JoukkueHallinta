@@ -108,6 +108,7 @@ def kilpailut():
             session['sarjaid'] = None
             session['joukkueid'] = None
         session['kisaid'] = kisaid
+        session['jasentenLukumaara'] = 5
         return redirect(url_for('kilpailu', kisaid=kisaid)) 
     
     try:
@@ -143,6 +144,7 @@ def kilpailu(kisaid):
     sarjaid = request.args.get('sarjaid')
     if sarjaid:
         session['sarjaid'] = sarjaid
+        session['jasentenLukumaara'] = 5
         return redirect(url_for('sarja', sarjaid=sarjaid))     
     
     try:        
@@ -189,11 +191,33 @@ def sarja(sarjaid):
         con = pool.get_connection()
         cur = con.cursor(dictionary = True)
 
-        # haetaan joukkueet jotka kuuluvat sarjaan
+        # haetaan joukkueet jotka kuuluvat valittuun sarjaan
         cur.execute("""SELECT joukkueid, nimi FROM joukkueet WHERE sarja = %s""", (sarjaid,))
         joukkueet = cur.fetchall()
 
+        jasentenLukumaara = session.get('jasentenLukumaara', 5) 
+       
         if request.method == "POST":
+            # jos jäseniä halutaan lisätä lisää
+            if 'add_more' in request.form:
+                jasentenLukumaara += 1
+                session['jasentenLukumaara'] = jasentenLukumaara
+                nimi = request.form.get('nimi', '')
+                jasenet = request.form.getlist('jasenet[]')
+                salasana=request.form.get('salasana', '')
+                return render_template("adminSarjanJoukkueet.html", 
+                                       joukkueet=joukkueet, 
+                                       sarjaid=sarjaid, 
+                                       joukkueid=session.get('joukkueid'), 
+                                       kisaid=session.get('kisaid'), 
+                                       jasentenLukumaara=jasentenLukumaara,
+                                       nimi=nimi,
+                                       salasana=salasana,
+                                       jasenet=jasenet)
+            # haetaan päivitetyt joukkueet, että nähdään uusi joukkue heti sivulla
+            cur.execute("""SELECT joukkueid, nimi FROM joukkueet WHERE sarja = %s""", (sarjaid,))
+            joukkueet = cur.fetchall() 
+            
             result = handleJoukkueLisaaminen(con, cur)
             # jos tulee errorviesti, palautetaan sama sivu viestin kanssa
             if result["error_message"]:
@@ -202,13 +226,14 @@ def sarja(sarjaid):
                     sarjaid=sarjaid, 
                     joukkueid=session.get('joukkueid'), 
                     kisaid=session.get('kisaid'),
-                    error_message=result["error_message"])
+                    error_message=result["error_message"], 
+                    jasentenLukumaara=jasentenLukumaara)
 
             # haetaan päivitetyt joukkueet, että nähdään uusi joukkue heti sivulla
             cur.execute("""SELECT joukkueid, nimi FROM joukkueet WHERE sarja = %s""", (sarjaid,))
             joukkueet = cur.fetchall()   
   
-        return render_template("adminSarjanJoukkueet.html", joukkueet=joukkueet, sarjaid=sarjaid, joukkueid=session.get('joukkueid'), kisaid=session.get('kisaid'))
+        return render_template("adminSarjanJoukkueet.html", joukkueet=joukkueet, sarjaid=sarjaid, joukkueid=session.get('joukkueid'), kisaid=session.get('kisaid'), jasentenLukumaara=jasentenLukumaara)
     
     except mysql.connector.Error as e:
         return Response(f"Tietokanta ei aukene: {str(e)}", status=500)
@@ -335,34 +360,6 @@ def joukkue(joukkueid):
             cur.close()
             con.close()
 
-
-# apufunktio joka muuttaa rivit dicteiksi niiden nimillä (tämän takia ei tarvitse muuttaa html tiedostoja kun vaihdettiin mysql.)
-#def fetch_all_as_dict(cursor):
-    #columns = [column[0] for column in cursor.description] 
-    #rows = cursor.fetchall()
-    
-    #result = []
-    #for row in rows:
-        #result.append(dict(zip(columns, row))) 
-    #return result
-
-#def yhdista_tietokantaan():
-    #try: 
-        # yhdistetään tietokantaan
-        #con = sqlite3.connect(os.path.abspath('tietokanta.db'))
-        #con.row_factory = sqlite3.Row
-        #con.execute("PRAGMA foreign_keys = ON")
-
-        #cur = con.cursor()
-        #return con, cur
-
-    #except sqlite3.Error as e:
-        #return Response(f"Tietokanta ei aukene: {str(e)}", status=500)
-    #except Exception as e:
-        #return Response(f"Tapahtui virhe: {str(e)}", status=500)
-
-
-
 # apufunktio salasanan suojaamiseen
 def hashPassword(joukkueid, salasana):
     m = hashlib.sha512()
@@ -481,6 +478,7 @@ def handleJoukkueLisaaminen(con, cur):
                     VALUES (%s, %s, %s, %s)""", (nimi, hashedSalasana, jasenet_json, sarja))
         
         con.commit()   
+        session['jasentenLukumaara'] = 5
 
     # jos erroria ei tule, tyhjä palautetaan
         return {"error_message": ""}
@@ -640,15 +638,6 @@ def kirjaudu():
 def logout():    
     isAdmin = session.get('adminKirjautunut')
     session.clear()
-    #session.pop('kirjautunut', None)
-    #session.pop('valittuKilpailuId', None)
-    #session.pop('kilpailu_nimi', None)
-    #session.pop('kilpailu_pvm', None)
-    #session.pop('käyttäjä', None)
-    #session.pop('jasenet', None)
-    #session.pop('joukkueid', None)
-    #session.pop('pvmIlmanAikaa', None)
-    #session.pop('adminKirjautunut', None)
     
     if isAdmin == "ok":
         return redirect(url_for('admin'))
@@ -774,8 +763,6 @@ def tiedot():
         if con.is_connected():
             cur.close()
             con.close()
-
-
    
 if __name__ == '__main__':
     app.run(debug=True)

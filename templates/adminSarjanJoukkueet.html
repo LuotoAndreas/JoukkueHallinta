@@ -37,20 +37,21 @@
             <form method="POST">
                 <div class="joukkuenimi">
                     <label for="nimi">Joukkueen nimi</label>   
-                    <input type="text" id="nimi" name="nimi">
+                    <input type="text" id="nimi" name="nimi" value="{{ nimi if nimi is not none else '' }}">
                 </div>
                 <div class="joukkuesalasana">
                     <label for="salasana">Salasana</label>   
-                    <input type="password" id="salasana" name="salasana">
+                    <input type="password" id="salasana" name="salasana" value="{{ salasana if salasana is not none else '' }}">
                 </div>                 
 
                 <label for="jasenet">Jäsenet</label>
                 <div class="jasenet-list">
-                    {% for i in range(5) %}
+                    {% for i in range(jasentenLukumaara) %}
                         <div class="jasen-box">
                             <label for="jasen_{{ i + 1 }}">Jäsen {{ i + 1 }}</label>
-                            <input type="text" id="jasen_{{ i + 1 }}" name="jasenet[]" class="jasen-nimi">
-                        </div>
+                            <input type="text" id="jasen_{{ i + 1 }}" name="jasenet[]" 
+                                class="jasen-nimi"
+                                value="{{ jasenet[i] if jasenet is not none and i < jasenet|length else '' }}">
                     {% endfor %}
                 </div>   
                 <div class="sarjat">
@@ -69,7 +70,10 @@
                     {{ error_message }}
                 </div>
             {% endif %}       
-            <button type="submit">Tallenna</button>
+            <div class="buttons">
+                <button type="submit" name="add_more" value="true">Lisää lisää jäseniä</button>
+                <button type="submit" name="save" value="true">Tallenna</button>
+            </div>
             </form>      
         </div>
     </body>
