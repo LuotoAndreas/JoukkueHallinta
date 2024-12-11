@@ -40,17 +40,31 @@
         </form>
     </div>
 
-  <h1>Tietokannan kilpailut</h1>
-  <div class="kilpailut">
-      <ul class="sarjat">
-          {% for kilpailu in kilpailut %}
-              <li value="{{ kilpailu['kisaid'] }} ">
-                  <a href="{{ url_for('kilpailut', kisaid=kilpailu['kisaid']) }}">
-                      {{ kilpailu['nimi'] }}
-                  </a>
-                  {{ kilpailu['alkuaika'] }}
-              </li>
-          {% endfor %}
-      </ul>
-  </div>
+    <h1 class="rastiotsikko">Rastit ja Leimaukset</h1>
+
+    <table>
+        <thead>
+            <tr>
+                <th>Koodi</th>
+                <th>Id</th>
+                <th>Latitude</th>
+                <th>Longitude</th>
+                <th>Kilpailu</th>
+                <th>Leimauksia</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for rasti in rastit %}
+            <tr>
+                <td>{{ rasti['koodi'] }}</td>
+                <td>{{ rasti['id'] }}</td>
+                <td>{{ rasti['lat'] }}</td>
+                <td>{{ rasti['lon'] }}</td>
+                <td>{{ rasti['kilpailu'] }}</td>
+                <td>{{ rasti['leimaukset_count'] }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
 </body>
+

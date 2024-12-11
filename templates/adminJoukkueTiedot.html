@@ -14,7 +14,7 @@
             <a href="{{ url_for('kilpailu', kisaid=session['kisaid']) }}">{{ session.get('kilpailuNimi') }}</a> |
         {% else %}
             <span class="disabled-link">Sarjat</span> |
-        {% endif %}
+        {% endif %}       
 
         {% if session.get('sarjaid') %}
             <a href="{{ url_for('sarja', sarjaid=session['sarjaid']) }}">{{ session.get('sarjaNimi') }}</a> |
@@ -25,7 +25,13 @@
         {% if session.get('joukkueid') %}
             <a href="{{ url_for('joukkue', joukkueid=session['joukkueid']) }}">{{ session.get('joukkueNimi') }}</a> |
         {% else %}
-            <span class="disabled-link">Joukkue</span> |
+            <span class="disabled-link">Joukkue</span> |---|
+        {% endif %}
+
+        {% if session.get('kisaid') %}
+            <a href="{{ url_for('rastit', kisaid=session['kisaid']) }}">{{ session.get('kilpailuNimi') }} -rastit</a> |
+        {% else %}
+            <span class="disabled-link">rastit</span> |
         {% endif %}
         
         <form action="{{ url_for('logout') }}" method="POST" style="display:inline;">

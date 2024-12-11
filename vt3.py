@@ -173,6 +173,41 @@ def kilpailu(kisaid):
             cur.close()
             con.close()
 
+
+# NÄYTTÄÄ LISTAN RASTEISTA
+@app.route('/rastit',methods=['GET', 'POST'])
+@admin_auth
+def rastit():         
+    try:
+        con = pool.get_connection()
+        cur = con.cursor(dictionary = True)
+
+        # haetaan kaikki kilpailun rastit ja niiden leimaukset yhdellä kyselyllä
+        cur.execute("""
+            SELECT rastit.koodi, rastit.id, rastit.lat, rastit.lon, rastit.kilpailu, COUNT(tupa.rasti) AS leimaukset_count
+            FROM rastit
+            LEFT OUTER JOIN tupa ON rastit.id = tupa.rasti
+            WHERE rastit.kilpailu = %s
+            GROUP BY rastit.id  
+            ORDER BY leimaukset_count DESC
+        """, (session.get('kisaid'),))
+        
+        # haetaan kaikki rastit ja leimaukset
+        rasti_leimaukset = cur.fetchall()
+
+        # näytetään lista eniten leimauksia saaneista rasteista
+        return render_template('adminRastit.html', rastit=rasti_leimaukset)
+    
+    except mysql.connector.Error as e:
+        return Response(f"Tietokanta ei aukene: {str(e)}", status=500)
+    except Exception as e:
+        return Response(f"Tapahtui virhe: {str(e)}", status=500)
+
+    finally:
+        if con.is_connected():
+            cur.close()
+            con.close()
+
             
 
 # NÄYTTÄÄ LISTAN JOUKKUEISTA
@@ -280,29 +315,27 @@ def joukkue(joukkueid):
             return redirect(url_for('kilpailut')) 
     
     session['joukkueid'] = joukkueid
+    
     try: 
-        kisaid = session.get('kisaid')
-
         con = pool.get_connection()
         cur = con.cursor(dictionary = True)
 
         # haetaan joukkue joilla tietty joukkueid
         cur.execute("""SELECT * FROM joukkueet WHERE joukkueid = %s""", (joukkueid,))
-        joukkue = cur.fetchone()
-        joukkue_nimi = joukkue['nimi'] if joukkue else None
-        session['joukkueNimi'] = joukkue_nimi
+        joukkue = cur.fetchone()      
 
         if joukkue:
             jasenet = json.loads(joukkue['jasenet'])
+            session['joukkueNimi'] = joukkue['nimi']
         else:
             jasenet = []
 
         # Haetaan sarja johon tämä joukkue kuuluu
-        sarja_id = joukkue['sarja']
+        sarja_id = joukkue['sarja'] if joukkue else None
 
         # Haetaan kilpailu johon tämä sarja kuuluu
         cur.execute("""SELECT kilpailu FROM sarjat WHERE sarjaid = %s""", (sarja_id,))
-        kilpailu_id = cur.fetchone()['kilpailu']
+        kilpailu_id = cur.fetchone()['kilpailu'] if sarja_id else None
 
         # Haetaan kaikki sarjat jotka kuuluvat tähän kilpailuun
         cur.execute("""SELECT * FROM sarjat WHERE kilpailu = %s""", (kilpailu_id,))
@@ -316,17 +349,10 @@ def joukkue(joukkueid):
                 # jos tulee errorviesti, palautetaan sama sivu viestin kanssa
                 if result["error_message"]:
                         return render_template(
-                            "adminJoukkueTiedot.html", 
-                            joukkue=joukkue,
-                            sarjat=sarjat,
-                            jasenet=jasenet,
-                            kisaid=kisaid,
-                            sarjaid=session.get('sarjaid'),
-                            joukkueid=joukkueid,
-                            error_message=result["error_message"])
-
+                            "adminJoukkueTiedot.html", joukkue=joukkue, sarjat=sarjat, jasenet=jasenet, error_message=result["error_message"])
                 # palataan sarjan joukkueet -sivulle jos ei erroreita
                 return redirect(url_for('sarja', sarjaid=session.get('sarjaid')))
+            
             else:
                 # Päivitetään joukkueen tiedot käyttämällä handleJoukkueUpdate funktiota
                 result = handleJoukkueUpdate(request, con, cur, joukkueid)
@@ -334,15 +360,7 @@ def joukkue(joukkueid):
                 # Tarkistetaan, onko virheilmoitus
                 if result["error_message"]:
                     return render_template(
-                        "adminJoukkueTiedot.html",
-                        joukkue=joukkue,
-                        sarjat=sarjat,
-                        jasenet=jasenet,
-                        kisaid=kisaid,
-                        sarjaid=session.get('sarjaid'),
-                        joukkueid=joukkueid,
-                        error_message=result["error_message"]
-                    )
+                        "adminJoukkueTiedot.html", joukkue=joukkue, sarjat=sarjat, jasenet=jasenet, error_message=result["error_message"])
 
                 # haetaan päivitetyt tiedot tallennuksen jälkeen
                 cur.execute("""SELECT * FROM joukkueet WHERE joukkueid = %s""", (joukkueid,))
@@ -351,25 +369,11 @@ def joukkue(joukkueid):
 
                 # Päivitetty onnistuneesti, palataan takaisin joukkueen tietoihin
                 return render_template(
-                    "adminJoukkueTiedot.html",
-                    joukkue=joukkue,
-                    sarjat=sarjat,
-                    jasenet=jasenet,
-                    kisaid=kisaid,
-                    sarjaid=session.get('sarjaid'),
-                    joukkueid=joukkueid
-                )       
+                    "adminJoukkueTiedot.html", joukkue=joukkue, sarjat=sarjat, jasenet=jasenet)       
         
         # renderöidään näkymä GET pyynnölle
         return render_template(
-            "adminJoukkueTiedot.html",
-            joukkue=joukkue,
-            sarjat=sarjat,
-            jasenet=jasenet,
-            kisaid=kisaid,
-            sarjaid=session.get('sarjaid'),
-            joukkueid=joukkueid
-        )
+            "adminJoukkueTiedot.html", joukkue=joukkue, sarjat=sarjat, jasenet=jasenet)
 
     except mysql.connector.Error as e:
         return Response(f"Tietokanta ei aukene: {str(e)}", status=500)
@@ -380,6 +384,7 @@ def joukkue(joukkueid):
         if con.is_connected():
             cur.close()
             con.close()
+
 
 # apufunktio salasanan suojaamiseen
 def hashPassword(joukkueid, salasana):

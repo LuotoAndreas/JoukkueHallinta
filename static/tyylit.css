@@ -57,4 +57,33 @@ input[type="text"] {
 .joukkuesalasana input[type="password"] {
     padding: 3px;
 }
+.rastiotsikko {
+    margin-left: 10px;
+}
+/* Table Styling */
+table {
+    width: 30%;
+    border-collapse: collapse;
+    margin-left: 10px;
+    background-color: #f9f9f9;
+    border-radius: 8px;
+}
+
+th, td {
+    padding: 12px;
+    text-align: center;
+    border: 1px solid #ddd;
+}
+
+th {
+    background-color: blue;
+    color: white;
+    font-weight: bold;
+}
+
+tr:nth-child(even) {
+    background-color: #f2f2f2;
+}
+
+
 

@@ -16,7 +16,7 @@
                 <a href="{{ url_for('kilpailu', kisaid=session['kisaid']) }}">{{ session.get('kilpailuNimi') }}</a> |
             {% else %}
                 <span class="disabled-link">Sarjat</span> |
-            {% endif %}
+            {% endif %}       
     
             {% if session.get('sarjaid') %}
                 <a href="{{ url_for('sarja', sarjaid=session['sarjaid']) }}">{{ session.get('sarjaNimi') }}</a> |
@@ -27,7 +27,13 @@
             {% if session.get('joukkueid') %}
                 <a href="{{ url_for('joukkue', joukkueid=session['joukkueid']) }}">{{ session.get('joukkueNimi') }}</a> |
             {% else %}
-                <span class="disabled-link">Joukkue</span> |
+                <span class="disabled-link">Joukkue</span> |---|
+            {% endif %}
+    
+            {% if session.get('kisaid') %}
+                <a href="{{ url_for('rastit', kisaid=session['kisaid']) }}">{{ session.get('kilpailuNimi') }} -rastit</a> |
+            {% else %}
+                <span class="disabled-link">rastit</span> |
             {% endif %}
             
             <form action="{{ url_for('logout') }}" method="POST" style="display:inline;">
@@ -38,27 +44,30 @@
         <h1>Sarjan joukkueet</h1>
         <div class="SarjanJoukkuetidot">     
             <form method="POST">
-                <div class="joukkuenimi">
-                    <label for="nimi">Joukkueen nimi</label>   
-                    <input type="text" id="nimi" name="nimi" value="{{ nimi if nimi is not none else '' }}">
-                </div>
-                <div class="joukkuesalasana">
-                    <label for="salasana">Salasana</label>   
-                    <input type="password" id="salasana" name="salasana" value="{{ salasana if salasana is not none else '' }}">
-                </div>                 
-
-                <label for="jasenet">Jäsenet</label>
                 <div class="jasenet-list">
-                    {% for i in range(jasentenLukumaara) %}
-                        <div class="jasen-box">
-                            <label for="jasen_{{ i + 1 }}">Jäsen {{ i + 1 }}</label>
-                            <input type="text" id="jasen_{{ i + 1 }}" name="jasenet[]" 
-                                class="jasen-nimi"
-                                value="{{ jasenet[i] if jasenet is not none and i < jasenet|length else '' }}">
-                    {% endfor %}
-                </div>   
-                <div class="sarjat">
-                    <ul class="sarjat">
+                    <div class="joukkuenimi">
+                        <label for="nimi">Joukkueen nimi</label>   
+                        <input type="text" id="nimi" name="nimi" value="{{ nimi if nimi is not none else '' }}">
+                    </div>
+                    <div class="joukkuesalasana">
+                        <label for="salasana">Salasana</label>   
+                        <input type="password" id="salasana" name="salasana" value="{{ salasana if salasana is not none else '' }}">
+                    </div>                 
+    
+                    <label for="jasenet">Jäsenet</label>
+                    <div class="jasenet-list">
+                        {% for i in range(jasentenLukumaara) %}
+                            <div class="jasen-box">
+                                <label for="jasen_{{ i + 1 }}">Jäsen {{ i + 1 }}</label>
+                                <input type="text" id="jasen_{{ i + 1 }}" name="jasenet[]" 
+                                    class="jasen-nimi"
+                                    value="{{ jasenet[i] if jasenet is not none and i < jasenet|length else '' }}">
+                        {% endfor %}
+                    </div> 
+                </div>
+                  
+                <div class="joukkueet">
+                    <ul class="joukkueet">
                         {% for joukkue in joukkueet %}
                         <li value="{{ joukkue['sarja'] }}">
                             <a href="{{ url_for('sarja', kisaid=kisaid, sarjaid=sarjaid, joukkueid=joukkue['joukkueid']) }}">
