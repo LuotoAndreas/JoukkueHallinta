@@ -9,28 +9,29 @@
     <div class="ylapalkki">    
         <label>ADMIN</label> |
         <a href="{{ url_for('kilpailut') }}">Kilpailut</a> |
-        {% if kisaid %}
-            <a href="{{ url_for('kilpailu', kisaid=kisaid) }}">Sarjat</a> |
+
+        {% if session.get('kisaid') %}
+            <a href="{{ url_for('kilpailu', kisaid=session['kisaid']) }}">{{ session.get('kilpailuNimi') }}</a> |
         {% else %}
-            <span class="disabled-link">Sarjat</span> | 
-            <!--<a href="#">Sarjat</a> | -->
+            <span class="disabled-link">Sarjat</span> |
         {% endif %}
 
-        {% if sarjaid %}
-            <a href="{{ url_for('sarja', sarjaid=sarjaid) }}">Joukkueet</a> |
+        {% if session.get('sarjaid') %}
+            <a href="{{ url_for('sarja', sarjaid=session['sarjaid']) }}">{{ session.get('sarjaNimi') }}</a> |
         {% else %}
             <span class="disabled-link">Joukkueet</span> |
         {% endif %}
-        
-        {% if joukkueid %}
-            <a href="{{ url_for('joukkue', joukkueid=joukkueid) }}">Joukkue</a> |
+
+        {% if session.get('joukkueid') %}
+            <a href="{{ url_for('joukkue', joukkueid=session['joukkueid']) }}">{{ session.get('joukkueNimi') }}</a> |
         {% else %}
             <span class="disabled-link">Joukkue</span> |
         {% endif %}
+        
         <form action="{{ url_for('logout') }}" method="POST" style="display:inline;">
-          <button type="submit">Logout</button>
+            <button type="submit">Logout</button>
         </form>
-      </div>
+    </div>
 
         <h1>Joukkue</h1>
     <div class="Joukkuetiedot">     

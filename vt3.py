@@ -151,6 +151,12 @@ def kilpailu(kisaid):
         con = pool.get_connection()
         cur = con.cursor(dictionary = True)
 
+        # haetaan kilpailun nimi
+        cur.execute("SELECT nimi FROM kilpailut WHERE kisaid = %s", (kisaid,))
+        kilpailu = cur.fetchone()
+        kilpailu_nimi = kilpailu['nimi'] if kilpailu else None
+        session['kilpailuNimi'] = kilpailu_nimi
+
         # haetaan sarjat jotka kuuluvat kilpailuun
         cur.execute("""SELECT sarjaid, nimi FROM sarjat WHERE kilpailu = %s ORDER BY LOWER(nimi)""", (kisaid,))
         sarjat = cur.fetchall()
@@ -191,6 +197,12 @@ def sarja(sarjaid):
         con = pool.get_connection()
         cur = con.cursor(dictionary = True)
 
+        # haetaan sarjan nimi
+        cur.execute("SELECT nimi FROM sarjat WHERE sarjaid = %s", (sarjaid,))
+        sarja = cur.fetchone()
+        sarja_nimi = sarja['nimi'] if sarja else None
+        session['sarjaNimi'] = sarja_nimi
+
         # haetaan joukkueet jotka kuuluvat valittuun sarjaan
         cur.execute("""SELECT joukkueid, nimi FROM joukkueet WHERE sarja = %s""", (sarjaid,))
         joukkueet = cur.fetchall()
@@ -227,13 +239,20 @@ def sarja(sarjaid):
                     joukkueid=session.get('joukkueid'), 
                     kisaid=session.get('kisaid'),
                     error_message=result["error_message"], 
-                    jasentenLukumaara=jasentenLukumaara)
+                    jasentenLukumaara=jasentenLukumaara
+                )
 
             # haetaan päivitetyt joukkueet, että nähdään uusi joukkue heti sivulla
             cur.execute("""SELECT joukkueid, nimi FROM joukkueet WHERE sarja = %s""", (sarjaid,))
             joukkueet = cur.fetchall()   
   
-        return render_template("adminSarjanJoukkueet.html", joukkueet=joukkueet, sarjaid=sarjaid, joukkueid=session.get('joukkueid'), kisaid=session.get('kisaid'), jasentenLukumaara=jasentenLukumaara)
+        return render_template("adminSarjanJoukkueet.html", 
+                               joukkueet=joukkueet, 
+                               sarjaid=sarjaid, 
+                               joukkueid=session.get('joukkueid'), 
+                               kisaid=session.get('kisaid'), 
+                               jasentenLukumaara=jasentenLukumaara
+                            )
     
     except mysql.connector.Error as e:
         return Response(f"Tietokanta ei aukene: {str(e)}", status=500)
@@ -270,6 +289,8 @@ def joukkue(joukkueid):
         # haetaan joukkue joilla tietty joukkueid
         cur.execute("""SELECT * FROM joukkueet WHERE joukkueid = %s""", (joukkueid,))
         joukkue = cur.fetchone()
+        joukkue_nimi = joukkue['nimi'] if joukkue else None
+        session['joukkueNimi'] = joukkue_nimi
 
         if joukkue:
             jasenet = json.loads(joukkue['jasenet'])
@@ -376,10 +397,6 @@ def handleJoukkueUpdate(request, con, cur, joukkueid):
     sarja = request.form.get("sarja")
     jasenet = [jasen.strip() for jasen in request.form.getlist('jasenet[]') if jasen.strip()]
 
-    # jos uusi salasana on syötetty lomakkeeseen niin se hashataan     
-    if salasana:       
-        salasana = hashPassword(joukkueid, salasana)
-
     # varmistetaan että joukkueen nimi on syötetty
     if not joukkueenNimi:
         return {"error_message": "Joukkueen nimi ei saa olla tyhjä!"}
@@ -401,19 +418,38 @@ def handleJoukkueUpdate(request, con, cur, joukkueid):
 
     result = cur.fetchone()
     if result:
-        return {"error_message": "Joukkueen nimi on jo käytössä"}
+        return {"error_message": "Joukkueen nimi on jo käytössä kilpailussa"}
     
     # serialisoidaan jäsenet
     jasenet_json = json.dumps(jasenet)
     try:
-        cur.execute(
-            """
-            UPDATE joukkueet
-            SET nimi = %s, salasana = %s, sarja = %s, jasenet = %s
-            WHERE joukkueid = %s
-            """,
-            (joukkueenNimi, salasana, sarja, jasenet_json, joukkueid),
-        )
+        if salasana:
+            print(f"Updating password for team {joukkueenNimi}: {salasana}")  # Debug print
+            hashUusiSalasana = hashPassword(joukkueid, salasana)
+            print(f'päivitetty salasana: {hashUusiSalasana}')
+            # jos salasana on annettu, päivitetään salasana, muuten ei
+            cur.execute(
+                """
+                UPDATE joukkueet
+                SET nimi = %s, salasana = %s, sarja = %s, jasenet = %s
+                WHERE joukkueid = %s
+                """,
+                (joukkueenNimi, hashUusiSalasana, sarja, jasenet_json, joukkueid),
+            )
+
+        else:
+            print(f"No password change. Keeping old password for team {joukkueenNimi}")  # Debug print
+            # jos salasanaa ei ole annettu, niin ei päivitetä sitä
+            cur.execute(
+                """
+                UPDATE joukkueet
+                SET nimi = %s, sarja = %s, jasenet = %s
+                WHERE joukkueid = %s
+                """,
+                (joukkueenNimi, sarja, jasenet_json, joukkueid),
+            )
+
+        # tallennetaan muutokset tietokantaan
         con.commit()
         
         # jos erroria ei tule, tyhjä palautetaan
@@ -424,7 +460,7 @@ def handleJoukkueUpdate(request, con, cur, joukkueid):
 
 # joukkueen lisääminen
 def handleJoukkueLisaaminen(con, cur):
-    nimi = request.form.get("nimi")
+    nimi1 = request.form.get("nimi")
     salasana = request.form.get("salasana", "").strip()
     sarja = session.get('sarjaid')
     jasenet = [jasen.strip() for jasen in request.form.getlist('jasenet[]') if jasen.strip()]
@@ -432,8 +468,12 @@ def handleJoukkueLisaaminen(con, cur):
     kisaid = session.get('kisaid')
     
     # varmistetaan että joukkueen nimi on syötetty
-    if not nimi:
+    if not nimi1:
         return {"error_message": "Joukkueen nimi ei saa olla tyhjä!"}
+
+    # varmistetaan että joukkueen salasana on syötetty
+    if not salasana:
+        return {"error_message": "Joukkueen salasana ei saa olla tyhjä!"}
     
     # jäseniä tulee olla vähintään kaksi
     if len(jasenet) < 2:
@@ -445,10 +485,10 @@ def handleJoukkueLisaaminen(con, cur):
 
     cur.execute("""SELECT sarjaid FROM sarjat WHERE kilpailu = %s""", (kisaid,))
     sarjaIds = cur.fetchall() 
-    print(f'haaa{sarjaIds}')
+    print(f'1{sarjaIds}')
     sarjaIds = [sarja['sarjaid'] for sarja in sarjaIds]
-    print(f'hee{sarjaIds}')
-
+    print(f'2{sarjaIds}')
+    
     # joukkueen nimi on ainutlaatuinen
     for sarjaid in sarjaIds:
         cur.execute("""
@@ -456,14 +496,13 @@ def handleJoukkueLisaaminen(con, cur):
             FROM joukkueet 
             WHERE LOWER(nimi) = LOWER(%s) 
             AND sarja = %s
-            """, (nimi, sarjaid))
+            """, (nimi1, sarjaid))
         
         result = cur.fetchone()
-        print(f'result on {result}')
+        print(f'result was found {result}')
 
         if result:
-            return {"error_message": "Joukkueen nimi on jo käytössä"}
-
+            return {"error_message": "Joukkueen nimi on jo käytössä kilpailussa"}
     
 
     # muutetaan jäsenet jsoniin
@@ -472,18 +511,23 @@ def handleJoukkueLisaaminen(con, cur):
     # hashataan salasana
     hashedSalasana = hashPassword(joukkueid, salasana)
     try:
+        print(f"Preparing to insert: nimi={nimi1}, hashedSalasana={hashedSalasana}, jasenet_json={jasenet_json}, sarja={sarja}")
 
         # alustetaan joukkueen lisääminen halutuilla tiedoilla
         cur.execute("""INSERT INTO joukkueet (nimi, salasana, jasenet, sarja) 
-                    VALUES (%s, %s, %s, %s)""", (nimi, hashedSalasana, jasenet_json, sarja))
+                    VALUES (%s, %s, %s, %s)""", (nimi1, hashedSalasana, jasenet_json, sarja))
+        
+        #select * from joukkueet where nimi=nimi1
         
         con.commit()   
         session['jasentenLukumaara'] = 5
+        print(f'ei päässyt tänne')
 
     # jos erroria ei tule, tyhjä palautetaan
         return {"error_message": ""}
-    except:
-        return {"error_message": "Joukkueen luonti epäonnistui."}
+    except Exception as e:
+        print(f"Error during insertion: {e}")
+        return {"error_message": "Joukkueen nimi on jo käytössä toisessa kilpailussa."}
 
 
 
@@ -554,7 +598,8 @@ def kirjaudu():
 
             # haetaan lomakkeesta syötetyt tiedot
             tunnus = request.form.get("tunnus")
-            salasana = request.form.get("salasana")            
+            salasana = request.form.get("salasana")    
+            print(f'syötetty salasana: {salasana}')        
             valittuKilpailuId = request.form.get("kilpailu") 
 
             if not tunnus or not salasana or not valittuKilpailuId:
@@ -562,8 +607,9 @@ def kirjaudu():
                 return render_template("kirjaudu.html", kilpailut=kilpailutjaVuosi, error_message=error_message)
             
             # haetaan joukkueenId ja salattu salasana tunnuksen mukaan
-            cur.execute("""SELECT joukkueid, salasana FROM joukkueet WHERE nimi = %s""", (tunnus,))
+            cur.execute("""SELECT nimi, joukkueid, salasana FROM joukkueet WHERE nimi = %s""", (tunnus,))
             joukkueidJaSalasana = cur.fetchone()
+            print(f'joukkue ja salasana: {joukkueidJaSalasana}')
 
             # jos käyttäjätunnus on väärin
             if not joukkueidJaSalasana:
@@ -571,10 +617,12 @@ def kirjaudu():
                 return render_template("kirjaudu.html", kilpailut=kilpailutjaVuosi, error_message=error_message)
 
             joukkueid = joukkueidJaSalasana['joukkueid']
-            hashedSalasana = joukkueidJaSalasana['salasana']
+            storedHadhedPassword = joukkueidJaSalasana['salasana']
+            print(f'databasessa ollut salasana: {storedHadhedPassword}')
 
             # hashataan salasana ja vertaillaan joukkueid:n mukaan
-            salasana = hashPassword(joukkueid, salasana)
+            hashedInputPassword = hashPassword(joukkueid, salasana)
+            print(f'syötetty salasana hashattuna: {hashedInputPassword}')
 
             # haetaan sarjat
             cur.execute("""SELECT sarjaid FROM sarjat WHERE kilpailu = %s""", (valittuKilpailuId,))
@@ -593,7 +641,7 @@ def kirjaudu():
                     team_exists = True
                     break
         
-            if team_exists and salasana == hashedSalasana:
+            if team_exists and hashedInputPassword == storedHadhedPassword:
                 # jos kaikki ok niin asetetaan sessioon tieto kirjautumisesta ja ohjataan laskurisivulle
                 session['kirjautunut'] = "ok"
                 session['valittuKilpailuId'] = valittuKilpailuId
