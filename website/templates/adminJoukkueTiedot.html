@@ -8,33 +8,33 @@
 <body>
     <div class="ylapalkki">    
         <label>ADMIN</label> |
-        <a href="{{ url_for('kilpailut') }}">Kilpailut</a> |
+        <a href="{{ url_for('views.kilpailut') }}">Kilpailut</a> |
 
         {% if session.get('kisaid') %}
-            <a href="{{ url_for('kilpailu', kisaid=session['kisaid']) }}">{{ session.get('kilpailuNimi') }}</a> |
+            <a href="{{ url_for('views.kilpailu', kisaid=session['kisaid']) }}">{{ session.get('kilpailuNimi') }}</a> |
         {% else %}
             <span class="disabled-link">Sarjat</span> |
         {% endif %}       
 
         {% if session.get('sarjaid') %}
-            <a href="{{ url_for('sarja', sarjaid=session['sarjaid']) }}">{{ session.get('sarjaNimi') }}</a> |
+            <a href="{{ url_for('views.sarja', sarjaid=session['sarjaid']) }}">{{ session.get('sarjaNimi') }}</a> |
         {% else %}
             <span class="disabled-link">Joukkueet</span> |
         {% endif %}
 
         {% if session.get('joukkueid') %}
-            <a href="{{ url_for('joukkue', joukkueid=session['joukkueid']) }}">{{ session.get('joukkueNimi') }}</a> |
+            <a href="{{ url_for('views.joukkue', joukkueid=session['joukkueid']) }}">{{ session.get('joukkueNimi') }}</a> |
         {% else %}
             <span class="disabled-link">Joukkue</span> |---|
         {% endif %}
 
         {% if session.get('kisaid') %}
-            <a href="{{ url_for('rastit', kisaid=session['kisaid']) }}">{{ session.get('kilpailuNimi') }} -rastit</a> |
+            <a href="{{ url_for('views.rastit', kisaid=session['kisaid']) }}">{{ session.get('kilpailuNimi') }} -rastit</a> |
         {% else %}
             <span class="disabled-link">rastit</span> |
         {% endif %}
         
-        <form action="{{ url_for('logout') }}" method="POST" style="display:inline;">
+        <form action="{{ url_for('auth.logout') }}" method="POST" style="display:inline;">
             <button type="submit">Logout</button>
         </form>
     </div>
