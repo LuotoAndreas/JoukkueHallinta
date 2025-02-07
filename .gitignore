@@ -1,2 +1,4 @@
-.tietokanta.db
-.dbconfig.json
+tietokanta.db
+dbconfig.json
+__pycache__/
+.venv/
