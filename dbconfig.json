@@ -1,0 +1,6 @@
+{
+    "database": "my_flask_app",
+    "user": "root",
+    "passwd": "root",
+    "host": "127.0.0.1"
+}
