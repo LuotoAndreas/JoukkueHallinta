@@ -7,50 +7,19 @@
 </head>
 
 <body>
-    <div class="ylapalkki">    
-        <label>ADMIN</label> |
-        <a href="{{ url_for('views.kilpailut') }}">Kilpailut</a> |
+    {% include 'baseNavbar.html' %}
 
-        {% if session.get('kisaid') %}
-            <a href="{{ url_for('views.kilpailu', kisaid=session['kisaid']) }}">{{ session.get('kilpailuNimi') }}</a> |
-        {% else %}
-            <span class="disabled-link">Sarjat</span> |
-        {% endif %}       
-
-        {% if session.get('sarjaid') %}
-            <a href="{{ url_for('views.sarja', sarjaid=session['sarjaid']) }}">{{ session.get('sarjaNimi') }}</a> |
-        {% else %}
-            <span class="disabled-link">Joukkueet</span> |
-        {% endif %}
-
-        {% if session.get('joukkueid') %}
-            <a href="{{ url_for('views.joukkue', joukkueid=session['joukkueid']) }}">{{ session.get('joukkueNimi') }}</a> |
-        {% else %}
-            <span class="disabled-link">Joukkue</span> |---|
-        {% endif %}
-
-        {% if session.get('kisaid') %}
-            <a href="{{ url_for('views.rastit', kisaid=session['kisaid']) }}">{{ session.get('kilpailuNimi') }} -rastit</a> |
-        {% else %}
-            <span class="disabled-link">rastit</span> |
-        {% endif %}
-        
-        <form action="{{ url_for('auth.logout') }}" method="POST" style="display:inline;">
-            <button type="submit">Logout</button>
-        </form>
+    <h1>Tietokannan kilpailut</h1>
+    <div class="kilpailut">
+        <ul class="sarjat">
+            {% for kilpailu in kilpailut %}
+                <li value="{{ kilpailu['kisaid'] }} ">
+                    <a href="{{ url_for('views.kilpailut', kisaid=kilpailu['kisaid']) }}">
+                        {{ kilpailu['nimi'] }}
+                    </a>
+                    {{ kilpailu['alkuaika'] }}
+                </li>
+            {% endfor %}
+        </ul>
     </div>
-
-  <h1>Tietokannan kilpailut</h1>
-  <div class="kilpailut">
-      <ul class="sarjat">
-          {% for kilpailu in kilpailut %}
-              <li value="{{ kilpailu['kisaid'] }} ">
-                  <a href="{{ url_for('views.kilpailut', kisaid=kilpailu['kisaid']) }}">
-                      {{ kilpailu['nimi'] }}
-                  </a>
-                  {{ kilpailu['alkuaika'] }}
-              </li>
-          {% endfor %}
-      </ul>
-  </div>
 </body>
